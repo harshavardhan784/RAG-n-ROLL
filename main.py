@@ -16,7 +16,6 @@ import pandas as pd
 import json
 import os
 
-session = get_active_session()
 
 
 import streamlit as st
