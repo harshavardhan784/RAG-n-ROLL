@@ -1,5 +1,16 @@
+import subprocess
 import streamlit as st
-import snowflake.connector
+
+# Install required packages if not already installed
+def install_package(package):
+    subprocess.check_call([subprocess.sys.executable, "-m", "pip", "install", package])
+
+# Try installing Snowflake connector and Streamlit if not already installed
+try:
+    import snowflake.connector
+except ImportError:
+    install_package('snowflake-connector-python')
+    import snowflake.connector
 
 # Snowflake connection parameters
 SNOWFLAKE_CONFIG = {
