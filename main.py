@@ -58,7 +58,7 @@ def get_mistral_query(session, user_query):
         """
         
         # Execute the query and collect results
-        result = session.sql(query).collect()
+        result = execute_query(session, query)
         
         # Check if the result is valid
         if not result or len(result) == 0:
@@ -81,7 +81,7 @@ def fetch_data_from_table(session, sql_query, temp_table_name):
     print()
         
     # Collect the result from the query
-    result = session.sql(sql_query).collect()
+    result = execute_query(session, sql_query)
 
     # Convert the result to a DataFrame (assuming the result is a list)
     result_df = pd.DataFrame(result)
@@ -145,7 +145,7 @@ def construct_context(session, user_id):
             ) u
             ON p.PRODUCT_ID = u.PRODUCT_ID;
         """
-        session.sql(create_query).collect()
+        execute_query(session, create_query)
 
         # Step 2: Fetch the updated context table
         results = session.sql("SELECT * FROM CONTEXT_TABLE").to_pandas()
@@ -168,7 +168,7 @@ def create_cortex_search_service(session, table_name):
     Returns:
         None
     """
-    session.sql(f"""
+    execute_query(session, f"""
         CREATE OR REPLACE CORTEX SEARCH SERVICE product_search_service
         ON TITLE
         ATTRIBUTES CATEGORY_1, CATEGORY_2, CATEGORY_3,HIGHLIGHTS, MRP
@@ -180,7 +180,7 @@ def create_cortex_search_service(session, table_name):
                 *
             FROM {table_name}
         );
-    """).collect()
+    """)
     
 def save_to_temp_table(session, df: pd.DataFrame, table_name: str = "TEMP_TABLE") -> bool:
     """
@@ -473,45 +473,45 @@ def filter_augment_table(session, user_query):
 def perform_semantic_search(session, user_id, rank=100, threshold=0.3):
     try:
         # Create staging table with fresh data
-        session.sql("""
+        execute_query(session , """
             CREATE OR REPLACE TABLE product_table_stage AS 
             SELECT DISTINCT * 
             FROM temp_table 
             WHERE TITLE IS NOT NULL;
-        """).collect()
+        """)
         
         # Generate embeddings for product titles
-        session.sql("""
+        execute_query(session ,"""
             ALTER TABLE product_table_stage 
             ADD COLUMN IF NOT EXISTS product_vec VECTOR(FLOAT, 768);
-        """).collect()
+        """)
         
-        session.sql("""
+        execute_query(session ,"""
             UPDATE product_table_stage
             SET product_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768(
                 'snowflake-arctic-embed-m', 
                 COALESCE(TITLE, '')
             )
             WHERE product_vec IS NULL;
-        """).collect()
+        """)
         
         # Generate embeddings for context
-        session.sql("""
+        execute_query(session ,"""
             ALTER TABLE context_table 
             ADD COLUMN IF NOT EXISTS context_vec VECTOR(FLOAT, 768);
-        """).collect()
+        """)
         
-        session.sql("""
+        execute_query(session ,"""
             UPDATE context_table
             SET context_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768(
                 'snowflake-arctic-embed-m', 
                 COALESCE(TITLE, '')
             )
             WHERE context_vec IS NULL;
-        """).collect()
+        """)
         
         # Perform semantic search with randomization for diversity
-        session.sql(f"""
+        execute_query(session ,f"""
             CREATE OR REPLACE TABLE augment_table AS
             WITH similarity_scores AS (
                 SELECT 
@@ -532,17 +532,17 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.3):
             SELECT * FROM ranked_results
             ORDER BY similarity DESC, random_rank
             LIMIT {rank};
-        """).collect()
+        """)
         
     except Exception as e:
         print(f"Error in semantic search: {str(e)}")
         # Fallback to basic recommendation
-        session.sql(f"""
+        execute_query(session ,f"""
             CREATE OR REPLACE TABLE augment_table AS
             SELECT *, 0.0 as similarity, ROW_NUMBER() OVER (ORDER BY PRODUCT_RATING DESC) as random_rank
             FROM product_table_stage
             LIMIT {rank};
-        """).collect()
+        """)
 
 
 def get_recommendations(session, human_query, user_id):
@@ -560,7 +560,7 @@ def get_recommendations(session, human_query, user_id):
     print(f"Constructed Context: {context}")
 
     create_query = f"CREATE OR REPLACE TABLE TEMP_TABLE AS (SELECT * FROM PRODUCT_TABLE)"
-    session.sql(create_query).collect()
+    execute_query(session ,create_query)
 
 
     print("filter_temp_table\n")
@@ -628,6 +628,23 @@ def get_active_session():
         st.error(f"Failed to connect to Snowflake: {str(e)}")
         return None
 
+def execute_query(session, query):
+    """Execute a query and return results as a DataFrame"""
+    try:
+        cur = session.cursor()
+        cur.execute(query)
+        
+        # Get column names and results
+        columns = [col[0] for col in cur.description]
+        results = cur.fetchall()
+        
+        return pd.DataFrame(results, columns=columns)
+    except Exception as e:
+        st.error(f"Error executing query: {str(e)}")
+        return pd.DataFrame()
+
+
+
 @st.cache_data(ttl=0)  # Set TTL to 0 to disable caching
 def fetch_recommendations(_session, human_query, user_id):
     # Clear any existing tables before running new query
@@ -663,7 +680,6 @@ def cleanup_tables(session):
         except Exception as e:
             print(f"Error cleaning up table: {str(e)}")
 
-
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interactions with products"""
     if user_id:
@@ -675,7 +691,13 @@ def log_interaction(session, user_id, product_id, interaction_type):
                 'USER_ID': user_id
             }
             interaction_df = pd.DataFrame([interaction_data])
-            session.write_pandas(interaction_df, 'USER_INTERACTIONS')
+            # Convert to query and execute
+            columns = ', '.join(interaction_data.keys())
+            values = ', '.join([f"'{v}'" for v in interaction_data.values()])
+            query = f"INSERT INTO USER_INTERACTIONS ({columns}) VALUES ({values})"
+            cur = session.cursor()
+            cur.execute(query)
+            session.commit()
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
@@ -887,13 +909,9 @@ def display_product_details(product, session):
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
     
-    # Get Snowflake session
     session = get_active_session()
-    if not session:
-        st.error("Failed to connect to database. Please check your connection settings.")
-        return
     
-        # Display header section
+    # Display header section
     header_section()
     
     if st.session_state.page == 'home':
@@ -908,7 +926,7 @@ def main():
                 key="search_input"
             )
         with col2:
-            search_button = st.button("Search", use_container_width=100, key="search_button")
+            search_button = st.button("Search", use_container_width=True, key="search_button")
         
         # Initialize container for results
         results_container = st.container()
@@ -917,16 +935,8 @@ def main():
         if search_button and search_query:
             with st.spinner('Finding the perfect products for you...'):
                 try:
-                    # # Get trending products (you'll need to implement this function)
-                    # trending_products = session.sql("""
-                    #     SELECT * FROM PRODUCT_TABLE 
-                    #     WHERE PRODUCT_RATING > 4.0 
-                    #     ORDER BY RANDOM() 
-                    #     LIMIT 6
-                    # """).collect()
+                    suggestions_df = fetch_recommendations(session, search_query, 6)
                     
-                    suggestions_df = fetch_recommendations(session, search_query, 1)
-                    st.write(suggestions_df)
                     # Display results in the container
                     with results_container:
                         if not suggestions_df.empty:
@@ -951,14 +961,13 @@ def main():
             with results_container:
                 st.markdown("### 📈 Trending Products")
                 try:
-                    # Get trending products
-                    default_products = session.sql("""
+                    # Get trending products using cursor instead of sql method
+                    default_query = """
                         SELECT * FROM PRODUCT_TABLE 
                         ORDER BY RANDOM() 
                         LIMIT 6
-                    """).collect()
-                    
-                    default_df = pd.DataFrame(default_products)
+                    """
+                    default_df = execute_query(session, default_query)
                     
                     if not default_df.empty:
                         for i in range(0, len(default_df), 2):
@@ -975,7 +984,6 @@ def main():
     
     elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
         display_product_details(st.session_state.current_product, session)
-
 
 if __name__ == "__main__":
     main()
