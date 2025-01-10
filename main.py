@@ -16,8 +16,6 @@ import pandas as pd
 import json
 import os
 
-# We can also use Snowpark for our analyses!
-from snowflake.snowpark.context import get_active_session
 session = get_active_session()
 
 
@@ -26,8 +24,6 @@ import pandas as pd
 from datetime import datetime
 import json
 import os
-# We can also use Snowpark for our analyses!
-from snowflake.snowpark.context import get_active_session
 
 
 
