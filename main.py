@@ -59,9 +59,10 @@ def get_mistral_query(session, user_query):
         ) AS response
         """
         
+        st.write("here1")
         # Execute the query and collect results
         result = execute_query(session, query)
-        
+        st.write("here2")
         # Check if the result is valid
         if not result or len(result) == 0:
             raise ValueError("No response received from Mistral")
@@ -636,6 +637,7 @@ def execute_query(session, query):
     try:
         cur = session.cursor()
         cur.execute(query)
+        st.write("here in execute_query_1")
         
         # Get column names and results
         columns = [col[0] for col in cur.description]
@@ -643,7 +645,7 @@ def execute_query(session, query):
         session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
 
         results = session.sql(query).collect()
-        
+        st.write(results)
         return pd.DataFrame(results, columns=columns)
     except Exception as e:
         st.error(f"Error executing query: {str(e)}")
