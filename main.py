@@ -1006,7 +1006,7 @@ def display_product_card(product, col, session, idx):
                     }
                     .product-image-container {
                         width: 250px;
-                        height: 250px;
+                        height: 200px;
                         overflow: hidden;
                         margin: 0 auto;
                         display: flex;
@@ -1092,7 +1092,7 @@ def display_product_details(product, session):
             <style>
                 .zoom-container {
                     width: 250px;
-                    height: 250px;
+                    height: 200px;
                     overflow: hidden;
                     margin: 20px auto;
                     position: relative;
