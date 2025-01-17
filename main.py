@@ -1028,31 +1028,55 @@ def display_product_card(product, col, session, idx):
             
             # View Details button
             with cols[0]:
-                if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
-                    st.write("view details button")
+                # if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+                #     st.write("view details button")
+                #     if st.session_state.user_id:
+                #         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
+                #     st.session_state.current_product = product
+                #     st.session_state.page = 'detail'
+                #     # st.rerun()
+
+                # For the "View Details" button
+                if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}", help="View details of the product", label_visibility="hidden"):
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
                     st.session_state.current_product = product
                     st.session_state.page = 'detail'
-                    # st.rerun()
+                    st.rerun()
+
             
+
             # Add to Cart button
             with cols[1]:
-                if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
-                    st.write("Add to Cart button")
+                # if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
+                #     st.write("Add to Cart button")
+                #     if product['PRODUCT_ID'] not in st.session_state.cart_items:
+                #         st.session_state.cart_items.append(product['PRODUCT_ID'])
+                #         if st.session_state.user_id:
+                #             log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                #         st.success('Added to cart!')
+            
+                # For the "Add to Cart" button
+                if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}", help="Add this product to your cart", label_visibility="hidden"):
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         if st.session_state.user_id:
                             log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
                         st.success('Added to cart!')
-            
+
             # Like button
             with cols[2]:
-                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
+                # if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
+                #     if st.session_state.user_id:
+                #         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                #     st.success('Product liked!')
+                
+                # For the "Like" button
+                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}", help="Like this product", label_visibility="hidden"):
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
                     st.success('Product liked!')
-            
+                    
             st.markdown('</div>', unsafe_allow_html=True)
 
 def display_product_details(product, session):
