@@ -986,5 +986,53 @@ def main():
     elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
         display_product_details(st.session_state.current_product, session)
 
+def check_cortex_availability(session):
+    """
+    Check if Cortex models are available and functional in the Snowflake environment.
+    """
+    try:
+        # Query to list available Cortex models
+        cortex_models_query = "SELECT SYSTEM$SHOW_EMBEDDING_MODELS();"
+        cortex_models = execute_query(session, cortex_models_query)
+        
+        if cortex_models.empty:
+            st.error("No Cortex models are available in this Snowflake environment.")
+            return False
+        else:
+            st.success("Cortex models available:")
+            st.write(cortex_models)
+        
+        # Test a simple Cortex query
+        test_prompt = """
+        SELECT SNOWFLAKE.CORTEX.COMPLETE(
+            'mistral-large',
+            $$ Convert this query: "find badminton rackets" $$
+        ) AS response;
+        """
+        st.write("Testing Cortex with a sample prompt...")
+        test_results = execute_query(session, test_prompt)
+        
+        if test_results.empty:
+            st.error("Cortex query executed but returned no results.")
+            return False
+        else:
+            st.success("Cortex is working. Sample response:")
+            st.write(test_results)
+            return True
+    
+    except Exception as e:
+        st.error(f"Error checking Cortex: {e}")
+        return False
+
+
+# Example usage in Streamlit
+if st.button("Check Cortex Status"):
+    session = get_active_session()
+    if session:
+        check_cortex_availability(session)
+    else:
+        st.error("Could not establish a Snowflake session.")
+
+
 if __name__ == "__main__":
     main()
