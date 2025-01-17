@@ -552,6 +552,7 @@ def get_recommendations(session, human_query, user_id):
     human_query = human_query.replace('"', '').replace("'", "")
 
     mistral_query = get_mistral_query(session, human_query)
+    st.write("mistral_query":mistral_query)
     mistral_query = mistral_query.replace('"', '').replace("'", "")
 
     print(mistral_query)
