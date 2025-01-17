@@ -1167,7 +1167,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
         query = "INSERT INTO USER_INTERACTION_TABLE (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) VALUES ('{user_id}', '{product_id}', '{interaction_type}', '{interaction_timestamp}'); "
         session.sql(query).collect()
         return True
-
+        
     except Exception as e:
         print(f"Error logging interaction: {str(e)}")
         return False
