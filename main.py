@@ -1169,7 +1169,6 @@ def display_product_details(product, session):
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
     
-    session = get_active_session()
     
     # Display header section
     header_section()
