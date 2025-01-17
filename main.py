@@ -26,7 +26,19 @@ from datetime import datetime
 import json
 import os
 
+# We can also use Snowpark for our analyses!
+# from snowflake.snowpark.context import get_active_session
 
+SNOWFLAKE_CONFIG = {
+    "account": "xyb99777",
+    "user": "TESTING",
+    "password": "Harsha123",
+    "warehouse": "ECOMMERCE_WH",
+    "database": "ECOMMERCE_DB",
+    "schema": "PUBLIC"
+}
+
+session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
 
 def get_mistral_query(session, user_query):
     """
@@ -59,10 +71,9 @@ def get_mistral_query(session, user_query):
         ) AS response
         """
         
-        st.write("here1")
         # Execute the query and collect results
-        result = execute_query(session, query)
-        st.write("here2")
+        result = session.sql(query).collect()
+        
         # Check if the result is valid
         if not result or len(result) == 0:
             raise ValueError("No response received from Mistral")
@@ -84,7 +95,7 @@ def fetch_data_from_table(session, sql_query, temp_table_name):
     print()
         
     # Collect the result from the query
-    result = execute_query(session, sql_query)
+    result = session.sql(sql_query).collect()
 
     # Convert the result to a DataFrame (assuming the result is a list)
     result_df = pd.DataFrame(result)
@@ -148,7 +159,7 @@ def construct_context(session, user_id):
             ) u
             ON p.PRODUCT_ID = u.PRODUCT_ID;
         """
-        execute_query(session, create_query)
+        session.sql(create_query).collect()
 
         # Step 2: Fetch the updated context table
         results = session.sql("SELECT * FROM CONTEXT_TABLE").to_pandas()
@@ -171,7 +182,7 @@ def create_cortex_search_service(session, table_name):
     Returns:
         None
     """
-    execute_query(session, f"""
+    session.sql(f"""
         CREATE OR REPLACE CORTEX SEARCH SERVICE product_search_service
         ON TITLE
         ATTRIBUTES CATEGORY_1, CATEGORY_2, CATEGORY_3,HIGHLIGHTS, MRP
@@ -183,7 +194,7 @@ def create_cortex_search_service(session, table_name):
                 *
             FROM {table_name}
         );
-    """)
+    """).collect()
     
 def save_to_temp_table(session, df: pd.DataFrame, table_name: str = "TEMP_TABLE") -> bool:
     """
@@ -471,50 +482,309 @@ def filter_augment_table(session, user_query):
 
 
 
+# def filter_augment_table(session, user_query):
+#     """
+#     Main function to process search query and filter results.
+#     """
+#     try:
+#         # Clean the query if necessary (here, it's just a placeholder)
+#         cleaned_query = user_query
+
+#         # Create the Cortex Search Service (ensure it is created beforehand)
+#         create_cortex_search_service(session, "AUGMENT_TABLE")
+
+#         # Create search configuration
+#         search_config = create_search_config(cleaned_query)
+
+#         # Convert the search configuration to a JSON string
+#         search_json = json.dumps(search_config)
+
+#         # Debug: Print the search JSON to ensure it's correctly formatted
+#         print("Debug - Search JSON:", search_json)
+        
+#         # Build the final SQL query using the escaped JSON configuration
+#         query = build_search_query(search_json)
+
+#         # Debug: Print the final query before execution
+#         print("Debug - Executing query:", query)
+        
+#         # Execute query
+#         results = session.sql(query).to_pandas()
+#         # print("Debug - Query results:", results)
+#         # print("here1")
+        
+#         if results.empty:
+#             print("No results found")
+#             return pd.DataFrame()
+        
+#         # Parse results
+#         parsed_results = results['SEARCH_RESULTS'].iloc[0]
+#         # print("parsed_results:", parsed_results)
+#         # print("here2")
+        
+#         # Handle string to dict conversion if necessary
+#         if isinstance(parsed_results, str):
+#             try:
+#                 parsed_results = json.loads(parsed_results)
+#             except json.JSONDecodeError:
+#                 print("Error: Could not parse results as JSON")
+#                 return pd.DataFrame()
+        
+#         # Extract results array
+#         if isinstance(parsed_results, dict) and 'results' in parsed_results:
+#             search_results = parsed_results['results']
+#             print("here3")
+#             print(search_results)
+#         else:
+#             print("No results array found in response")
+#             return pd.DataFrame()
+        
+#         # Convert to DataFrame and process
+#         flattened_results = pd.json_normalize(search_results)
+#         if flattened_results.empty:
+#             print("Search returned no matching results")
+#             return pd.DataFrame()
+        
+#         # Process numeric columns
+#         flattened_results = process_numeric_columns(flattened_results)
+
+#         print(flattened_results)
+        
+#         # Save to temporary table
+#         if save_to_temp_table(session, flattened_results, "RECOMMENDATIONS_TABLE"):
+#             return flattened_results
+#         else:
+#             print("Failed to save results to temporary table")
+#             return flattened_results
+        
+#     except Exception as e:
+#         print(f"Error in filter_temp_table: {str(e)}")
+#         return pd.DataFrame()
+
+
+# def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
+#     """
+#     Performs semantic search and retrieves the top results for a given user.
+    
+#     Args:
+#         session: The Snowflake session/connection object.
+#         user_id: The user ID for context filtering (if applicable).
+#         rank: The number of top results to retrieve (default is 100).
+#         threshold: The similarity threshold for filtering results (default is 0.5).
+
+#     Returns:
+#         A DataFrame containing the top results.
+#     """
+#     try:
+#         # Step 1: Create a staging table for the product data
+#         session.sql("""
+#             CREATE OR REPLACE TABLE product_table_stage AS 
+#             SELECT * 
+#             FROM temp_table;
+#         """).collect()
+    
+#         print("here1")
+#         # Step 2: Add query embedding vectors for each row in the staging table
+#         session.sql("""
+#             ALTER TABLE product_table_stage ADD COLUMN IF NOT EXISTS product_vec VECTOR(FLOAT, 768);
+#         """).collect()
+    
+#         print("here2")
+#         # Step 3: Generate embedding vectors for each query in the staging table
+#         session.sql("""
+#             UPDATE product_table_stage
+#             SET product_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768('snowflake-arctic-embed-m', TITLE);
+#         """).collect()
+    
+#         print("here3")
+#         # Step 4: Add query embedding vectors for each row in the context table
+#         session.sql("""
+#             ALTER TABLE context_table ADD COLUMN IF NOT EXISTS context_vec VECTOR(FLOAT, 768);
+#         """).collect()
+#         print("here4")
+    
+#         # Step 5: Generate embedding vectors for each query in the context table
+#         session.sql("""
+#             UPDATE context_table
+#             SET context_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768('snowflake-arctic-embed-m', TITLE);
+#         """).collect()
+    
+#         print("here5")
+#         # Step 6: Perform semantic search and combine results
+#         session.sql(f"""
+#             CREATE OR REPLACE TABLE augment_table AS
+#             WITH cross_product AS (
+#                 SELECT 
+#                     p.CATEGORY_1,
+#                     p.CATEGORY_2,
+#                     p.CATEGORY_3,
+#                     p.DESCRIPTION,
+#                     p.HIGHLIGHTS,
+#                     p.IMAGE_LINKS,
+#                     p.MRP,
+#                     p.PRODUCT_ID,
+#                     p.PRODUCT_RATING,
+#                     p.SELLER_NAME,
+#                     p.SELLER_RATING,
+#                     p.TITLE,
+#                     p.product_vec,
+#                     VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
+#                 FROM context_table c
+#                 CROSS JOIN product_table_stage p
+#             ),
+#             ranked_results AS (
+#                 SELECT
+#                     CATEGORY_1,
+#                     CATEGORY_2,
+#                     CATEGORY_3,
+#                     DESCRIPTION,
+#                     HIGHLIGHTS,
+#                     IMAGE_LINKS,
+#                     MRP,
+#                     PRODUCT_ID,
+#                     PRODUCT_RATING,
+#                     SELLER_NAME,
+#                     SELLER_RATING,
+#                     TITLE,
+#                     similarity
+#                 FROM cross_product
+#                 WHERE similarity > {threshold}
+#                 ORDER BY similarity DESC
+#             ),
+#             default_results AS (
+#                 SELECT
+#                     CATEGORY_1,
+#                     CATEGORY_2,
+#                     CATEGORY_3,
+#                     DESCRIPTION,
+#                     HIGHLIGHTS,
+#                     IMAGE_LINKS,
+#                     MRP,
+#                     PRODUCT_ID,
+#                     PRODUCT_RATING,
+#                     SELLER_NAME,
+#                     SELLER_RATING,
+#                     TITLE,
+#                     NULL as similarity
+#                 FROM product_table_stage
+#                 LIMIT 100
+#             )
+#             SELECT *
+#             FROM (
+#                 SELECT * FROM ranked_results
+#                 UNION ALL
+#                 SELECT * FROM default_results
+#                 WHERE NOT EXISTS (SELECT 1 FROM context_table)
+#             ) final_results
+#             ORDER BY similarity DESC NULLS LAST
+#             LIMIT 100;
+#         """).collect()
+#         print("Step 6: Results successfully stored in augment_table.")
+#     except Exception as e:
+#         print(f"Error during semantic search: {str(e)}")
+
+
+# # Add underscore to indicate the session parameter shouldn't be hashed
+# @st.cache_data
+# def fetch_recommendations(_session, human_query, user_id):
+#     return get_recommendations(_session, human_query, user_id)
+
+# def main():
+#     df = fetch_recommendations(session, "I want to buy ayurvedic products", 1)
+#     st.write(df)
+
+# if __name__ == "__main__":
+#     main()
+
+
+@st.cache_data(ttl=0)  # Set TTL to 0 to disable caching
+def fetch_recommendations(_session, human_query, user_id):
+    # Clear any existing tables before running new query
+    cleanup_tables(_session)
+    return get_recommendations(_session, human_query, user_id)
+
+# # 1. In the get_recommendations function:
+# def get_recommendations(session, human_query, user_id):
+#     # Remove any existing tables first to ensure fresh results
+#     cleanup_tables(session)
+    
+#     human_query = human_query.replace('"', '').replace("'", "")
+    
+#     # Get query from Mistral
+#     mistral_query = get_mistral_query(session, human_query)
+#     mistral_query = mistral_query.replace('"', '').replace("'", "")
+    
+#     print(f"Original query: {human_query}")
+#     print(f"Processed query: {mistral_query}")
+    
+#     # Get user context
+#     context = construct_context(session, user_id)
+#     print(f"User context: {context}")
+    
+#     # Create fresh temporary table
+#     create_query = "CREATE OR REPLACE TABLE TEMP_TABLE AS (SELECT * FROM PRODUCT_TABLE WHERE 1=1)"
+#     session.sql(create_query).collect()
+    
+#     # Apply filters based on query
+#     filter_temp_table(session, mistral_query)
+#     filter_context_table(session, mistral_query)
+    
+#     # Perform semantic search with lower threshold to get more diverse results
+#     perform_semantic_search(session, user_id, rank=100, threshold=0.3)
+    
+#     # Get final recommendations
+#     recommendations_df = filter_augment_table(session, mistral_query)
+    
+#     if recommendations_df.empty:
+#         print("No recommendations found, falling back to default query")
+#         fallback_query = "SELECT * FROM PRODUCT_TABLE ORDER BY PRODUCT_RATING DESC LIMIT 10"
+#         recommendations_df = session.sql(fallback_query).to_pandas()
+    
+#     return recommendations_df
 
 # 2. In the perform_semantic_search function:
 def perform_semantic_search(session, user_id, rank=100, threshold=0.3):
     try:
         # Create staging table with fresh data
-        execute_query(session , """
+        session.sql("""
             CREATE OR REPLACE TABLE product_table_stage AS 
             SELECT DISTINCT * 
             FROM temp_table 
             WHERE TITLE IS NOT NULL;
-        """)
+        """).collect()
         
         # Generate embeddings for product titles
-        execute_query(session ,"""
+        session.sql("""
             ALTER TABLE product_table_stage 
             ADD COLUMN IF NOT EXISTS product_vec VECTOR(FLOAT, 768);
-        """)
+        """).collect()
         
-        execute_query(session ,"""
+        session.sql("""
             UPDATE product_table_stage
             SET product_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768(
                 'snowflake-arctic-embed-m', 
                 COALESCE(TITLE, '')
             )
             WHERE product_vec IS NULL;
-        """)
+        """).collect()
         
         # Generate embeddings for context
-        execute_query(session ,"""
+        session.sql("""
             ALTER TABLE context_table 
             ADD COLUMN IF NOT EXISTS context_vec VECTOR(FLOAT, 768);
-        """)
+        """).collect()
         
-        execute_query(session ,"""
+        session.sql("""
             UPDATE context_table
             SET context_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768(
                 'snowflake-arctic-embed-m', 
                 COALESCE(TITLE, '')
             )
             WHERE context_vec IS NULL;
-        """)
+        """).collect()
         
         # Perform semantic search with randomization for diversity
-        execute_query(session ,f"""
+        session.sql(f"""
             CREATE OR REPLACE TABLE augment_table AS
             WITH similarity_scores AS (
                 SELECT 
@@ -535,17 +805,17 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.3):
             SELECT * FROM ranked_results
             ORDER BY similarity DESC, random_rank
             LIMIT {rank};
-        """)
+        """).collect()
         
     except Exception as e:
         print(f"Error in semantic search: {str(e)}")
         # Fallback to basic recommendation
-        execute_query(session ,f"""
+        session.sql(f"""
             CREATE OR REPLACE TABLE augment_table AS
             SELECT *, 0.0 as similarity, ROW_NUMBER() OVER (ORDER BY PRODUCT_RATING DESC) as random_rank
             FROM product_table_stage
             LIMIT {rank};
-        """)
+        """).collect()
 
 
 def get_recommendations(session, human_query, user_id):
@@ -555,7 +825,6 @@ def get_recommendations(session, human_query, user_id):
     human_query = human_query.replace('"', '').replace("'", "")
 
     mistral_query = get_mistral_query(session, human_query)
-    st.write("mistral_query:",mistral_query)
     mistral_query = mistral_query.replace('"', '').replace("'", "")
 
     print(mistral_query)
@@ -564,7 +833,7 @@ def get_recommendations(session, human_query, user_id):
     print(f"Constructed Context: {context}")
 
     create_query = f"CREATE OR REPLACE TABLE TEMP_TABLE AS (SELECT * FROM PRODUCT_TABLE)"
-    execute_query(session ,create_query)
+    session.sql(create_query).collect()
 
 
     print("filter_temp_table\n")
@@ -594,70 +863,61 @@ def get_recommendations(session, human_query, user_id):
         # Return basic recommendations on error
         basic_query = "SELECT * FROM PRODUCT_TABLE ORDER BY RANDOM() LIMIT 6"
         return session.sql(basic_query).to_pandas()
+
+# # Modified get_recommendations function
+# def get_recommendations(session, human_query, user_id):
+#     # Clean up any existing temporary tables first
+#     cleanup_tables(session)
     
-
-# Snowflake connection parameters
-# SNOWFLAKE_CONFIG = {
-#     "account": "tjb57239",
-#     "user": "HARSHA070804",
-#     "password": "Harsha123",
-#     "warehouse": "ECOMMERCE_WH",
-#     "database": "ECOMMERCE_DB",
-#     "schema": "PUBLIC"
-# }
-
-SNOWFLAKE_CONFIG = {
-    "account": "xyb99777",
-    "user": "TESTING",
-    "password": "Harsha123",
-    "warehouse": "ECOMMERCE_WH",
-    "database": "ECOMMERCE_DB",
-    "schema": "PUBLIC"
-}
-
-@st.cache_resource
-def get_active_session():
-    """Initialize and cache Snowflake connection"""
-    try:
-        conn = snowflake.connector.connect(
-            account=SNOWFLAKE_CONFIG["account"],
-            user=SNOWFLAKE_CONFIG["user"],
-            password=SNOWFLAKE_CONFIG["password"],
-            warehouse=SNOWFLAKE_CONFIG["warehouse"],
-            database=SNOWFLAKE_CONFIG["database"],
-            schema=SNOWFLAKE_CONFIG["schema"]
-        )
-        return conn
-    except Exception as e:
-        st.error(f"Failed to connect to Snowflake: {str(e)}")
-        return None
-
-def execute_query(session, query):
-    """Execute a query and return results as a DataFrame"""
-    try:
-        cur = session.cursor()
-        cur.execute(query)
-        st.write("here in execute_query_1")
+#     try:
+#         human_query = human_query.replace('"', '').replace("'", "")
         
-        # Get column names and results
-        columns = [col[0] for col in cur.description]
-        # results = cur.fetchall()
-        session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
-
-        results = session.sql(query).collect()
-        st.write(results)
-        return pd.DataFrame(results, columns=columns)
-    except Exception as e:
-        st.error(f"Error executing query: {str(e)}")
-        return pd.DataFrame()
-
-
-
-@st.cache_data(ttl=0)  # Set TTL to 0 to disable caching
-def fetch_recommendations(_session, human_query, user_id):
-    # Clear any existing tables before running new query
-    cleanup_tables(_session)
-    return get_recommendations(_session, human_query, user_id)
+#         # Get Mistral query
+#         mistral_query = get_mistral_query(session, human_query)
+#         mistral_query = mistral_query.replace('"', '').replace("'", "")
+        
+#         print(f"Original query: {human_query}")
+#         print(f"Processed query: {mistral_query}")
+        
+#         # Create fresh temporary table
+#         create_query = """
+#         CREATE OR REPLACE TABLE TEMP_TABLE AS 
+#         SELECT * FROM PRODUCT_TABLE 
+#         WHERE 1=1 
+#         """
+#         session.sql(create_query).collect()
+        
+#         # Run the search pipeline
+#         filter_temp_table(session, mistral_query)
+        
+#         if user_id:
+#             # Get user context and filter
+#             context = construct_context(session, user_id)
+#             filter_context_table(session, mistral_query)
+            
+#             # Perform semantic search
+#             perform_semantic_search(session, user_id, rank=100, threshold=0.3)
+        
+#         # Get final recommendations
+#         final_df = filter_augment_table(session, mistral_query)
+        
+#         if final_df.empty:
+#             # Fallback to basic recommendations
+#             fallback_query = """
+#             SELECT * FROM PRODUCT_TABLE 
+#             WHERE PRODUCT_RATING > 3.0 
+#             ORDER BY RANDOM() 
+#             LIMIT 10
+#             """
+#             final_df = session.sql(fallback_query).to_pandas()
+        
+#         return final_df
+        
+    # except Exception as e:
+    #     print(f"Error in get_recommendations: {str(e)}")
+    #     # Return basic recommendations on error
+    #     basic_query = "SELECT * FROM PRODUCT_TABLE ORDER BY RANDOM() LIMIT 6"
+    #     return session.sql(basic_query).to_pandas()
 
 # Initialize session states
 if 'user_id' not in st.session_state:
@@ -683,8 +943,7 @@ def cleanup_tables(session):
     
     for query in cleanup_queries:
         try:
-            cur = session.cursor()
-            cur.execute(query)
+            session.sql(query).collect()
         except Exception as e:
             print(f"Error cleaning up table: {str(e)}")
 
@@ -699,13 +958,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
                 'USER_ID': user_id
             }
             interaction_df = pd.DataFrame([interaction_data])
-            # Convert to query and execute
-            columns = ', '.join(interaction_data.keys())
-            values = ', '.join([f"'{v}'" for v in interaction_data.values()])
-            query = f"INSERT INTO USER_INTERACTIONS ({columns}) VALUES ({values})"
-            cur = session.cursor()
-            cur.execute(query)
-            session.commit()
+            session.write_pandas(interaction_df, 'USER_INTERACTIONS')
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
@@ -913,7 +1166,6 @@ def display_product_details(product, session):
         except:
             st.write("No highlights available")
 
-
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
     
@@ -930,11 +1182,11 @@ def main():
         with col1:
             search_query = st.text_input(
                 "",
-                placeholder="E.g., 'suggest me a good comfortable badminton rackets for kids' or 'Suggest me aurvedic products for my gut problem'",
+                placeholder="E.g., 'suggest me a good wedding outfit in india' or 'comfortable running shoes'",
                 key="search_input"
             )
         with col2:
-            search_button = st.button("Search", use_container_width=True, key="search_button")
+            search_button = st.button("Search", use_container_width=100, key="search_button")
         
         # Initialize container for results
         results_container = st.container()
@@ -943,8 +1195,16 @@ def main():
         if search_button and search_query:
             with st.spinner('Finding the perfect products for you...'):
                 try:
-                    suggestions_df = fetch_recommendations(session, search_query, 6)
+                    # # Get trending products (you'll need to implement this function)
+                    # trending_products = session.sql("""
+                    #     SELECT * FROM PRODUCT_TABLE 
+                    #     WHERE PRODUCT_RATING > 4.0 
+                    #     ORDER BY RANDOM() 
+                    #     LIMIT 6
+                    # """).collect()
                     
+                    suggestions_df = fetch_recommendations(session, search_query, 1)
+                    st.write(suggestions_df)
                     # Display results in the container
                     with results_container:
                         if not suggestions_df.empty:
@@ -969,13 +1229,14 @@ def main():
             with results_container:
                 st.markdown("### 📈 Trending Products")
                 try:
-                    # Get trending products using cursor instead of sql method
-                    default_query = """
+                    # Get trending products
+                    default_products = session.sql("""
                         SELECT * FROM PRODUCT_TABLE 
                         ORDER BY RANDOM() 
                         LIMIT 6
-                    """
-                    default_df = execute_query(session, default_query)
+                    """).collect()
+                    
+                    default_df = pd.DataFrame(default_products)
                     
                     if not default_df.empty:
                         for i in range(0, len(default_df), 2):
@@ -995,3 +1256,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
