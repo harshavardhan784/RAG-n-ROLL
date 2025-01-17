@@ -1044,18 +1044,16 @@ def display_product_card(product, col, session, idx):
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         if st.session_state.user_id:
                             log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                        # Display message in the current page without rerun
+                        # Store message in session state instead of rerunning
                         st.session_state.cart_message = 'Added to cart!'
-                        st.experimental_rerun()  # Only trigger rerun if needed to reflect the cart changes
 
             # Like button
             with cols[2]:
                 if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                    # Display message without rerun
+                    # Store message in session state instead of rerunning
                     st.session_state.like_message = 'Product liked!'
-                    st.experimental_rerun()  # Rerun here only if you want to refresh something critical
             
             # Conditionally show the success message if it's set
             if 'cart_message' in st.session_state:
