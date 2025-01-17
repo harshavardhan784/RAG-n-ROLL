@@ -990,6 +990,7 @@
 
 
 import snowflake.connector
+import streamlit as st
 
 # Snowflake connection configuration
 SNOWFLAKE_CONFIG = {
@@ -1018,10 +1019,10 @@ try:
     version = cursor.fetchone()
 
     # Display Snowflake version
-    print(f"Connection successful! Snowflake version: {version[0]}")
+    st.write(f"Connection successful! Snowflake version: {version[0]}")
 
 except Exception as e:
-    print(f"Failed to connect to Snowflake: {e}")
+    st.write(f"Failed to connect to Snowflake: {e}")
 
 finally:
     # Close connection if established
