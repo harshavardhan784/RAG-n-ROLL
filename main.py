@@ -935,6 +935,25 @@ def cleanup_tables(session):
     #     basic_query = "SELECT * FROM PRODUCT_TABLE ORDER BY RANDOM() LIMIT 6"
     #     return session.sql(basic_query).to_pandas()
 
+def header_section():
+    """Create the header section of the application"""
+    col1, col2, col3 = st.columns([2,1,1])
+    
+    with col1:
+        st.title("🛍️ Smart Shopping")
+    
+    with col2:
+        user_id = st.number_input("Enter User ID", min_value=0, value=0, step=1, key="user_id_input")
+        if user_id > 0:
+            st.session_state.user_id = user_id
+    
+    with col3:
+        st.write("🛒 Shopping Cart")
+        st.write(f"Items: {len(st.session_state.cart_items)}")
+        if st.button("Clear Cart", key="clear_cart_header"):
+            st.session_state.cart_items = []
+            st.success("Cart cleared!")
+
 import streamlit as st
 from datetime import datetime
 import pandas as pd
