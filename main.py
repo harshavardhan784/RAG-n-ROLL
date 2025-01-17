@@ -982,7 +982,11 @@ def header_section():
         if st.button("Clear Cart", key="clear_cart_header"):
             st.session_state.cart_items = []
             st.success("Cart cleared!")
-# Enhanced display_product_card function with consistent image sizing
+
+import streamlit as st
+from datetime import datetime
+import pandas as pd
+
 def display_product_card(product, col, session, idx):
     """Display a single product card with consistent image sizing"""
     with col:
@@ -1005,15 +1009,14 @@ def display_product_card(product, col, session, idx):
                         height: 300px;
                         overflow: hidden;
                         margin: 0 auto;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
                     }
                     .product-image {
-                        width: 100%;
-                        height: 100%;
+                        max-width: 100%;
+                        max-height: 100%;
                         object-fit: contain;
-                        transition: transform 0.3s;
-                    }
-                    .product-image:hover {
-                        transform: scale(1.1);
                     }
                 </style>
             """, unsafe_allow_html=True)
@@ -1023,7 +1026,7 @@ def display_product_card(product, col, session, idx):
             # Display product image with consistent sizing
             st.markdown('<div class="product-image-container">', unsafe_allow_html=True)
             try:
-                st.image(product['IMAGE_LINKS'], use_column_width=False, width=300)
+                st.image(product['IMAGE_LINKS'], use_column_width=False, width=300, output_format="auto")
             except:
                 st.image("https://via.placeholder.com/300", use_column_width=False, width=300)
             st.markdown('</div>', unsafe_allow_html=True)
@@ -1031,22 +1034,29 @@ def display_product_card(product, col, session, idx):
             # Display product information
             st.markdown(f"### {product['TITLE'][:50]}...")
             st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
-            st.write(f"💰 Price: ₹{product['SELLING_PRICE']:,.2f}")
             
-            # Action buttons
+            # Convert selling price to integer
+            selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
+            st.write(f"💰 Price: ₹{selling_price:,}")
+            
+            # Action buttons using unique keys
             cols = st.columns(3)
             
             # View Details button
             with cols[0]:
-                if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+                view_key = f"view_{product['PRODUCT_ID']}_{idx}"
+                if st.button('View Details', key=view_key):
                     log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
                     st.session_state.current_product = product
                     st.session_state.page = 'detail'
-                    st.experimental_rerun()
+                    st.rerun()
             
             # Add to Cart button
             with cols[1]:
-                if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
+                cart_key = f"cart_{product['PRODUCT_ID']}_{idx}"
+                if st.button('Add to Cart', key=cart_key):
+                    if 'cart_items' not in st.session_state:
+                        st.session_state.cart_items = []
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
@@ -1054,22 +1064,22 @@ def display_product_card(product, col, session, idx):
             
             # Like button
             with cols[2]:
-                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
+                like_key = f"like_{product['PRODUCT_ID']}_{idx}"
+                if st.button('❤️', key=like_key):
                     log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
                     st.success('Product liked!')
             
             st.markdown('</div>', unsafe_allow_html=True)
 
-# Enhanced display_product_details function with improved image zoom
 def display_product_details(product, session):
     """Display detailed product information with enhanced image zoom"""
     st.markdown("---")
     
-    # Back button
-    if st.button("← Back to Search Results"):
+    # Back button with unique key
+    if st.button("← Back to Search Results", key="back_to_search"):
         st.session_state.page = 'home'
         st.session_state.current_product = None
-        st.experimental_rerun()
+        st.rerun()
     
     # Product title
     st.title(product['TITLE'])
@@ -1088,24 +1098,27 @@ def display_product_details(product, session):
                     position: relative;
                     border: 1px solid #ddd;
                     border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
                 }
                 .zoom-image {
-                    width: 100%;
-                    height: 100%;
+                    max-width: 100%;
+                    max-height: 100%;
                     object-fit: contain;
-                    transition: transform 0.5s ease;
-                    cursor: zoom-in;
+                    transition: transform 0.3s ease;
                 }
                 .zoom-image:hover {
-                    transform: scale(1.8);
-                    transform-origin: 50% 50%;
+                    transform: scale(1.5);
+                    cursor: zoom-in;
                 }
             </style>
         """, unsafe_allow_html=True)
         
         st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
         try:
-            st.image(product['IMAGE_LINKS'], use_column_width=False, width=400, output_format="auto")
+            st.image(product['IMAGE_LINKS'], use_column_width=False, width=400, output_format="auto", 
+                    classes=['zoom-image'])
         except:
             st.image("https://via.placeholder.com/400", use_column_width=False, width=400)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1113,7 +1126,6 @@ def display_product_details(product, session):
     with col2:
         st.markdown("### Product Details")
         
-        # Product information box
         st.markdown("""
             <style>
                 .info-box {
@@ -1127,9 +1139,17 @@ def display_product_details(product, session):
         
         st.markdown('<div class="info-box">', unsafe_allow_html=True)
         st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
-        st.write(f"**MRP:** ₹{product['MRP']:,.2f}")
-        st.write(f"**Selling Price:** ₹{product['SELLING_PRICE']:,.2f}")
-        st.write(f"**Discount:** {((product['MRP'] - product['SELLING_PRICE'])/product['MRP'] * 100):.1f}%")
+        
+        # Convert prices to integer
+        mrp = int(float(product['MRP'])) if product['MRP'] else 0
+        selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
+        
+        st.write(f"**MRP:** ₹{mrp:,}")
+        st.write(f"**Selling Price:** ₹{selling_price:,}")
+        
+        if mrp > 0:
+            discount = ((mrp - selling_price) / mrp * 100)
+            st.write(f"**Discount:** {discount:.1f}%")
         
         st.write("**Seller Information:**")
         st.write(f"Name: {product['SELLER_NAME']}")
@@ -1138,10 +1158,12 @@ def display_product_details(product, session):
         st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Action buttons
+        # Action buttons with unique keys
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
+                if 'cart_items' not in st.session_state:
+                    st.session_state.cart_items = []
                 if product['PRODUCT_ID'] not in st.session_state.cart_items:
                     st.session_state.cart_items.append(product['PRODUCT_ID'])
                     log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
@@ -1157,9 +1179,8 @@ def display_product_details(product, session):
                 log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
                 st.success('Product liked!')
 
-# Enhanced log_interaction function with error handling and validation
 def log_interaction(session, user_id, product_id, interaction_type):
-    """Log user interactions with products with enhanced validation"""
+    """Log user interactions with products"""
     if not user_id:
         st.warning("Please login with your User ID to track interactions")
         return
@@ -1183,7 +1204,6 @@ def log_interaction(session, user_id, product_id, interaction_type):
         
     except Exception as e:
         st.error(f"Error logging interaction: {str(e)}")
-        # Log error for debugging
         print(f"Error details: {str(e)}")
         
 def main():
