@@ -1005,7 +1005,7 @@ def display_product_card(product, col, session, idx):
                         transform: translateY(-5px);
                     }
                     .product-image-container {
-                        width: 250px;
+                        width: 200px;
                         height: 200px;
                         overflow: hidden;
                         margin: 0 auto;
@@ -1091,7 +1091,7 @@ def display_product_details(product, session):
         st.markdown("""
             <style>
                 .zoom-container {
-                    width: 250px;
+                    width: 200px;
                     height: 200px;
                     overflow: hidden;
                     margin: 20px auto;
