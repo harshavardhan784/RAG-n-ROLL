@@ -56,9 +56,10 @@ def get_mistral_query(session, user_query):
             $${prompt_template}$$
         ) AS response
         """
-        
+        st.write("Executing query:", query)
         # Execute the query and collect results
         result = execute_query(session, query)
+        st.write("Query Results:", result) 
         
         # Check if the result is valid
         if not result or len(result) == 0:
@@ -922,7 +923,7 @@ def main():
         with col1:
             search_query = st.text_input(
                 "",
-                placeholder="E.g., 'suggest me a good wedding outfit in india' or 'comfortable running shoes'",
+                placeholder="E.g., 'suggest me a good comfortable badminton rackets for kids' or 'Suggest me aurvedic products for my gut problem'",
                 key="search_input"
             )
         with col2:
