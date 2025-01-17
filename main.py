@@ -1251,9 +1251,11 @@ def main():
                         
                 except Exception as e:
                     st.error(f"Error loading trending products: {str(e)}")
-    
+
+        return
     elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
         display_product_details(st.session_state.current_product, session)
+        return
 
 if __name__ == "__main__":
     main()
