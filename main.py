@@ -971,6 +971,8 @@ def init_session_state():
     if 'search_performed' not in st.session_state:
         st.session_state.search_performed = False
 
+import streamlit as st
+
 def display_product_card(product, col, session, idx):
     """Display a single product card with consistent image sizing"""
     with col:
@@ -1028,56 +1030,44 @@ def display_product_card(product, col, session, idx):
             
             # View Details button
             with cols[0]:
-                # if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
-                #     st.write("view details button")
-                #     if st.session_state.user_id:
-                #         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
-                #     st.session_state.current_product = product
-                #     st.session_state.page = 'detail'
-                #     # st.rerun()
-
-                # For the "View Details" button
-                if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}", help="View details of the product", label_visibility="hidden"):
-                    if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
+                if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
                     st.session_state.current_product = product
                     st.session_state.page = 'detail'
-                    st.rerun()
-
-            
+                    if st.session_state.user_id:
+                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
+                    # No rerun here, just set the page state
 
             # Add to Cart button
             with cols[1]:
-                # if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
-                #     st.write("Add to Cart button")
-                #     if product['PRODUCT_ID'] not in st.session_state.cart_items:
-                #         st.session_state.cart_items.append(product['PRODUCT_ID'])
-                #         if st.session_state.user_id:
-                #             log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                #         st.success('Added to cart!')
-            
-                # For the "Add to Cart" button
-                if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}", help="Add this product to your cart", label_visibility="hidden"):
+                if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         if st.session_state.user_id:
                             log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                        st.success('Added to cart!')
+                        # Display message in the current page without rerun
+                        st.session_state.cart_message = 'Added to cart!'
+                        st.experimental_rerun()  # Only trigger rerun if needed to reflect the cart changes
 
             # Like button
             with cols[2]:
-                # if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
-                #     if st.session_state.user_id:
-                #         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                #     st.success('Product liked!')
-                
-                # For the "Like" button
-                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}", help="Like this product", label_visibility="hidden"):
+                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                    st.success('Product liked!')
-                    
+                    # Display message without rerun
+                    st.session_state.like_message = 'Product liked!'
+                    st.experimental_rerun()  # Rerun here only if you want to refresh something critical
+            
+            # Conditionally show the success message if it's set
+            if 'cart_message' in st.session_state:
+                st.success(st.session_state.cart_message)
+                del st.session_state.cart_message
+
+            if 'like_message' in st.session_state:
+                st.success(st.session_state.like_message)
+                del st.session_state.like_message
+
             st.markdown('</div>', unsafe_allow_html=True)
+
 
 def display_product_details(product, session):
     """Display detailed product information with enhanced image zoom"""
@@ -1276,10 +1266,8 @@ def main():
                 except Exception as e:
                     st.error(f"Error loading trending products: {str(e)}")
 
-        return
     elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
         display_product_details(st.session_state.current_product, session)
-        return
 
 if __name__ == "__main__":
     main()
