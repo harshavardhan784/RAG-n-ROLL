@@ -1029,6 +1029,7 @@ def display_product_card(product, col, session, idx):
             # View Details button
             with cols[0]:
                 if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+                    st.write("view details button")
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
                     st.session_state.current_product = product
@@ -1038,6 +1039,7 @@ def display_product_card(product, col, session, idx):
             # Add to Cart button
             with cols[1]:
                 if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
+                    st.write("Add to Cart button")
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         if st.session_state.user_id:
