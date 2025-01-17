@@ -970,64 +970,9 @@ def init_session_state():
         st.session_state.user_id = None
     if 'search_performed' not in st.session_state:
         st.session_state.search_performed = False
-    if 'navigation_stack' not in st.session_state:
-        st.session_state.navigation_stack = []
-    if 'messages' not in st.session_state:
-        st.session_state.messages = []
-
-def handle_navigation(new_page, product=None):
-    """Handle page navigation without triggering refreshes"""
-    if new_page != st.session_state.page:
-        st.session_state.navigation_stack.append(st.session_state.page)
-    st.session_state.page = new_page
-    if product is not None:
-        st.session_state.current_product = product
-
-def go_back():
-    """Handle back navigation"""
-    if st.session_state.navigation_stack:
-        previous_page = st.session_state.navigation_stack.pop()
-        st.session_state.page = previous_page
-        if previous_page == 'home':
-            st.session_state.current_product = None
-
-def add_message(message, type='success'):
-    """Add a message to be displayed without triggering a refresh"""
-    st.session_state.messages.append({'text': message, 'type': type})
-
-def display_messages():
-    """Display and clear pending messages"""
-    if st.session_state.messages:
-        for msg in st.session_state.messages:
-            if msg['type'] == 'success':
-                st.success(msg['text'])
-            elif msg['type'] == 'error':
-                st.error(msg['text'])
-            elif msg['type'] == 'info':
-                st.info(msg['text'])
-        st.session_state.messages = []
-
-def header_section():
-    """Create the header section of the application"""
-    col1, col2, col3 = st.columns([2,1,1])
-    
-    with col1:
-        st.title("🛍️ Smart Shopping")
-    
-    with col2:
-        user_id = st.number_input("Enter User ID", min_value=0, value=0, step=1, key="user_id_input")
-        if user_id > 0:
-            st.session_state.user_id = user_id
-    
-    with col3:
-        st.write("🛒 Shopping Cart")
-        st.write(f"Items: {len(st.session_state.cart_items)}")
-        if st.button("Clear Cart"):
-            st.session_state.cart_items = []
-            add_message("Cart cleared!")
 
 def display_product_card(product, col, session, idx):
-    """Display a single product card with smooth navigation"""
+    """Display a single product card with consistent image sizing"""
     with col:
         with st.container():
             st.markdown("""
@@ -1056,21 +1001,16 @@ def display_product_card(product, col, session, idx):
                         max-width: 100%;
                         max-height: 100%;
                         object-fit: contain;
-                        transition: transform 0.3s ease;
-                    }
-                    .product-image:hover {
-                        transform: scale(1.2);
-                        cursor: zoom-in;
                     }
                 </style>
             """, unsafe_allow_html=True)
             
             st.markdown('<div class="product-card">', unsafe_allow_html=True)
             
-            # Display product image
+            # Display product image with consistent sizing
             st.markdown('<div class="product-image-container">', unsafe_allow_html=True)
             try:
-                st.image(product['IMAGE_LINKS'], width=200, classes=['product-image'])
+                st.image(product['IMAGE_LINKS'], width=200, output_format="auto")
             except:
                 st.image("https://via.placeholder.com/200", width=200)
             st.markdown('</div>', unsafe_allow_html=True)
@@ -1078,44 +1018,52 @@ def display_product_card(product, col, session, idx):
             # Display product information
             st.markdown(f"### {product['TITLE'][:50]}...")
             st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
+            
+            # Convert selling price to integer
             selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
             st.write(f"💰 Price: ₹{selling_price:,}")
             
-            # Action buttons
+            # Action buttons using unique keys
             cols = st.columns(3)
             
             # View Details button
             with cols[0]:
                 if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+                    st.write("view details button")
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
-                    handle_navigation('detail', product)
-
+                    st.session_state.current_product = product
+                    st.session_state.page = 'detail'
+                    # st.rerun()
+                    
             # Add to Cart button
             with cols[1]:
                 if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
+                    st.write("Add to Cart button")
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         if st.session_state.user_id:
                             log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                        add_message('Added to cart!')
-
+                        st.success('Added to cart!')
+            
             # Like button
             with cols[2]:
                 if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                        add_message('Product liked!')
+                    st.success('Product liked!')
             
             st.markdown('</div>', unsafe_allow_html=True)
 
 def display_product_details(product, session):
-    """Display detailed product information"""
+    """Display detailed product information with enhanced image zoom"""
     st.markdown("---")
     
-    # Back button
+    # Back button with unique key
     if st.button("← Back to Search Results", key="back_to_search"):
-        go_back()
+        st.session_state.page = 'home'
+        st.session_state.current_product = None
+        # st.rerun()
     
     # Product title
     st.title(product['TITLE'])
@@ -1127,8 +1075,8 @@ def display_product_details(product, session):
         st.markdown("""
             <style>
                 .zoom-container {
-                    width: 300px;
-                    height: 300px;
+                    width: 200px;
+                    height: 200px;
                     overflow: hidden;
                     margin: 20px auto;
                     position: relative;
@@ -1153,9 +1101,10 @@ def display_product_details(product, session):
         
         st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
         try:
-            st.image(product['IMAGE_LINKS'], width=300, classes=['zoom-image'])
+            st.image(product['IMAGE_LINKS'], width=200, output_format="auto", 
+                    classes=['zoom-image'])
         except:
-            st.image("https://via.placeholder.com/300", width=300)
+            st.image("https://via.placeholder.com/200", width=200)
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
@@ -1175,6 +1124,7 @@ def display_product_details(product, session):
         st.markdown('<div class="info-box">', unsafe_allow_html=True)
         st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
         
+        # Convert prices to integer
         mrp = int(float(product['MRP'])) if product['MRP'] else 0
         selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
         
@@ -1191,7 +1141,7 @@ def display_product_details(product, session):
         st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # Action buttons
+        # Action buttons with unique keys
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
@@ -1199,52 +1149,30 @@ def display_product_details(product, session):
                     st.session_state.cart_items.append(product['PRODUCT_ID'])
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                    add_message('Added to cart!')
+                    st.success('Added to cart!')
         
         with col2:
             if st.button('Buy Now', key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
                 if st.session_state.user_id:
                     log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchased')
-                add_message('Order placed successfully!')
+                st.success('Order placed successfully!')
         
         with col3:
             if st.button('❤️ Like', key=f"detail_like_{product['PRODUCT_ID']}", use_container_width=True):
                 if st.session_state.user_id:
                     log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                add_message('Product liked!')
+                st.success('Product liked!')
 
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interactions with products"""
     try:
-        query = f"""
-        INSERT INTO USER_INTERACTION_TABLE 
-        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) 
-        VALUES 
-        ({user_id}, {product_id}, '{interaction_type}', CURRENT_TIMESTAMP())
-        """
+        query = "INSERT INTO USER_INTERACTION_TABLE (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) VALUES ('{user_id}', '{product_id}', '{interaction_type}', '{interaction_timestamp}'); "
         session.sql(query).collect()
         return True
+        
     except Exception as e:
         print(f"Error logging interaction: {str(e)}")
         return False
-
-def fetch_recommendations(session, search_query, num_results=6):
-    """Fetch product recommendations based on search query"""
-    try:
-        # Replace this with your actual recommendation logic
-        query = f"""
-        SELECT * FROM PRODUCT_TABLE 
-        WHERE LOWER(TITLE) LIKE LOWER('%{search_query}%')
-        OR LOWER(DESCRIPTION) LIKE LOWER('%{search_query}%')
-        LIMIT {num_results}
-        """
-        results = session.sql(query).collect()
-        return pd.DataFrame(results)
-    except Exception as e:
-        print(f"Error fetching recommendations: {str(e)}")
-        return pd.DataFrame()
-
-
 
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
