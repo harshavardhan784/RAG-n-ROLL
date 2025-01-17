@@ -960,7 +960,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
                 'USER_ID': user_id
             }
             interaction_df = pd.DataFrame([interaction_data])
-            session.write_pandas(interaction_df, 'USER_INTERACTION_TABLE')
+            session.write_pandas(interaction_df, 'USER_INTERACTIONS')
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
@@ -982,7 +982,6 @@ def header_section():
         if st.button("Clear Cart", key="clear_cart_header"):
             st.session_state.cart_items = []
             st.success("Cart cleared!")
-
 # Enhanced display_product_card function with consistent image sizing
 def display_product_card(product, col, session, idx):
     """Display a single product card with consistent image sizing"""
@@ -1180,9 +1179,101 @@ def log_interaction(session, user_id, product_id, interaction_type):
         }
         
         interaction_df = pd.DataFrame([interaction_data])
-        session.write_pandas(interaction_df, 'USER_INTERACTION_TABLE')
+        session.write_pandas(interaction_df, 'USER_INTERACTIONS')
         
     except Exception as e:
         st.error(f"Error logging interaction: {str(e)}")
         # Log error for debugging
         print(f"Error details: {str(e)}")
+        
+def main():
+    st.set_page_config(page_title="Smart Shopping", layout="wide")
+    
+    
+    # Display header section
+    header_section()
+    
+    if st.session_state.page == 'home':
+        st.markdown("## 🔍 Smart Product Search")
+        
+        # Search section with button
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            search_query = st.text_input(
+                "",
+                placeholder="E.g., 'suggest me a good wedding outfit in india' or 'comfortable running shoes'",
+                key="search_input"
+            )
+        with col2:
+            search_button = st.button("Search", use_container_width=100, key="search_button")
+        
+        # Initialize container for results
+        results_container = st.container()
+        
+        # Only perform search when button is clicked
+        if search_button and search_query:
+            with st.spinner('Finding the perfect products for you...'):
+                try:
+                    # # Get trending products (you'll need to implement this function)
+                    # trending_products = session.sql("""
+                    #     SELECT * FROM PRODUCT_TABLE 
+                    #     WHERE PRODUCT_RATING > 4.0 
+                    #     ORDER BY RANDOM() 
+                    #     LIMIT 6
+                    # """).collect()
+                    
+                    suggestions_df = fetch_recommendations(session, search_query, 1)
+                    st.write(suggestions_df)
+                    # Display results in the container
+                    with results_container:
+                        if not suggestions_df.empty:
+                            st.success('Here are some products you might like!')
+                            
+                            # Display products in a grid
+                            for i in range(0, len(suggestions_df), 2):
+                                cols = st.columns(2)
+                                if i < len(suggestions_df):
+                                    display_product_card(suggestions_df.iloc[i], cols[0], session, f"search_{i}_left")
+                                if i + 1 < len(suggestions_df):
+                                    display_product_card(suggestions_df.iloc[i + 1], cols[1], session, f"search_{i}_right")
+                        else:
+                            st.info("No products found matching your search.")
+                
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
+                    st.error("Please try a different search query.")
+        
+        # Show trending products if no search has been performed
+        elif not st.session_state.get('search_performed', False):
+            with results_container:
+                st.markdown("### 📈 Trending Products")
+                try:
+                    # Get trending products
+                    default_products = session.sql("""
+                        SELECT * FROM PRODUCT_TABLE 
+                        ORDER BY RANDOM() 
+                        LIMIT 6
+                    """).collect()
+                    
+                    default_df = pd.DataFrame(default_products)
+                    
+                    if not default_df.empty:
+                        for i in range(0, len(default_df), 2):
+                            cols = st.columns(2)
+                            if i < len(default_df):
+                                display_product_card(default_df.iloc[i], cols[0], session, f"trend_{i}_left")
+                            if i + 1 < len(default_df):
+                                display_product_card(default_df.iloc[i + 1], cols[1], session, f"trend_{i}_right")
+                    else:
+                        st.info("No trending products available at the moment.")
+                        
+                except Exception as e:
+                    st.error(f"Error loading trending products: {str(e)}")
+    
+    elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
+        display_product_details(st.session_state.current_product, session)
+
+if __name__ == "__main__":
+    main()
+
+
