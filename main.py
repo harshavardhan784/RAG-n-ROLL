@@ -954,4 +954,370 @@ def header_section():
             st.session_state.cart_items = []
             st.success("Cart cleared!")
 
+import streamlit as st
+from datetime import datetime
+import pandas as pd
 
+# Initialize session state variables
+def init_session_state():
+    if 'page' not in st.session_state:
+        st.session_state.page = 'home'
+    if 'current_product' not in st.session_state:
+        st.session_state.current_product = None
+    if 'cart_items' not in st.session_state:
+        st.session_state.cart_items = []
+    if 'user_id' not in st.session_state:
+        st.session_state.user_id = None
+    if 'search_performed' not in st.session_state:
+        st.session_state.search_performed = False
+    if 'navigation_stack' not in st.session_state:
+        st.session_state.navigation_stack = []
+    if 'messages' not in st.session_state:
+        st.session_state.messages = []
+
+def handle_navigation(new_page, product=None):
+    """Handle page navigation without triggering refreshes"""
+    if new_page != st.session_state.page:
+        st.session_state.navigation_stack.append(st.session_state.page)
+    st.session_state.page = new_page
+    if product is not None:
+        st.session_state.current_product = product
+
+def go_back():
+    """Handle back navigation"""
+    if st.session_state.navigation_stack:
+        previous_page = st.session_state.navigation_stack.pop()
+        st.session_state.page = previous_page
+        if previous_page == 'home':
+            st.session_state.current_product = None
+
+def add_message(message, type='success'):
+    """Add a message to be displayed without triggering a refresh"""
+    st.session_state.messages.append({'text': message, 'type': type})
+
+def display_messages():
+    """Display and clear pending messages"""
+    if st.session_state.messages:
+        for msg in st.session_state.messages:
+            if msg['type'] == 'success':
+                st.success(msg['text'])
+            elif msg['type'] == 'error':
+                st.error(msg['text'])
+            elif msg['type'] == 'info':
+                st.info(msg['text'])
+        st.session_state.messages = []
+
+def header_section():
+    """Create the header section of the application"""
+    col1, col2, col3 = st.columns([2,1,1])
+    
+    with col1:
+        st.title("🛍️ Smart Shopping")
+    
+    with col2:
+        user_id = st.number_input("Enter User ID", min_value=0, value=0, step=1, key="user_id_input")
+        if user_id > 0:
+            st.session_state.user_id = user_id
+    
+    with col3:
+        st.write("🛒 Shopping Cart")
+        st.write(f"Items: {len(st.session_state.cart_items)}")
+        if st.button("Clear Cart"):
+            st.session_state.cart_items = []
+            add_message("Cart cleared!")
+
+def display_product_card(product, col, session, idx):
+    """Display a single product card with smooth navigation"""
+    with col:
+        with st.container():
+            st.markdown("""
+                <style>
+                    .product-card {
+                        padding: 15px;
+                        border: 1px solid #ddd;
+                        border-radius: 10px;
+                        margin: 10px 0;
+                        transition: transform 0.3s;
+                    }
+                    .product-card:hover {
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        transform: translateY(-5px);
+                    }
+                    .product-image-container {
+                        width: 200px;
+                        height: 200px;
+                        overflow: hidden;
+                        margin: 0 auto;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .product-image {
+                        max-width: 100%;
+                        max-height: 100%;
+                        object-fit: contain;
+                        transition: transform 0.3s ease;
+                    }
+                    .product-image:hover {
+                        transform: scale(1.2);
+                        cursor: zoom-in;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('<div class="product-card">', unsafe_allow_html=True)
+            
+            # Display product image
+            st.markdown('<div class="product-image-container">', unsafe_allow_html=True)
+            try:
+                st.image(product['IMAGE_LINKS'], width=200, classes=['product-image'])
+            except:
+                st.image("https://via.placeholder.com/200", width=200)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Display product information
+            st.markdown(f"### {product['TITLE'][:50]}...")
+            st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
+            selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
+            st.write(f"💰 Price: ₹{selling_price:,}")
+            
+            # Action buttons
+            cols = st.columns(3)
+            
+            # View Details button
+            with cols[0]:
+                if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+                    if st.session_state.user_id:
+                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
+                    handle_navigation('detail', product)
+
+            # Add to Cart button
+            with cols[1]:
+                if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
+                    if product['PRODUCT_ID'] not in st.session_state.cart_items:
+                        st.session_state.cart_items.append(product['PRODUCT_ID'])
+                        if st.session_state.user_id:
+                            log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                        add_message('Added to cart!')
+
+            # Like button
+            with cols[2]:
+                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
+                    if st.session_state.user_id:
+                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                        add_message('Product liked!')
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+
+def display_product_details(product, session):
+    """Display detailed product information"""
+    st.markdown("---")
+    
+    # Back button
+    if st.button("← Back to Search Results", key="back_to_search"):
+        go_back()
+    
+    # Product title
+    st.title(product['TITLE'])
+    
+    # Main product section
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("""
+            <style>
+                .zoom-container {
+                    width: 300px;
+                    height: 300px;
+                    overflow: hidden;
+                    margin: 20px auto;
+                    position: relative;
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .zoom-image {
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                    transition: transform 0.3s ease;
+                }
+                .zoom-image:hover {
+                    transform: scale(1.5);
+                    cursor: zoom-in;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
+        try:
+            st.image(product['IMAGE_LINKS'], width=300, classes=['zoom-image'])
+        except:
+            st.image("https://via.placeholder.com/300", width=300)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("### Product Details")
+        
+        st.markdown("""
+            <style>
+                .info-box {
+                    background-color: #f0f2f6;
+                    padding: 20px;
+                    border-radius: 10px;
+                    margin: 10px 0;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="info-box">', unsafe_allow_html=True)
+        st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
+        
+        mrp = int(float(product['MRP'])) if product['MRP'] else 0
+        selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
+        
+        st.write(f"**MRP:** ₹{mrp:,}")
+        st.write(f"**Selling Price:** ₹{selling_price:,}")
+        
+        if mrp > 0:
+            discount = ((mrp - selling_price) / mrp * 100)
+            st.write(f"**Discount:** {discount:.1f}%")
+        
+        st.write("**Seller Information:**")
+        st.write(f"Name: {product['SELLER_NAME']}")
+        st.write(f"Rating: ⭐{product['SELLER_RATING']}/5")
+        st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Action buttons
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
+                if product['PRODUCT_ID'] not in st.session_state.cart_items:
+                    st.session_state.cart_items.append(product['PRODUCT_ID'])
+                    if st.session_state.user_id:
+                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                    add_message('Added to cart!')
+        
+        with col2:
+            if st.button('Buy Now', key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
+                if st.session_state.user_id:
+                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchased')
+                add_message('Order placed successfully!')
+        
+        with col3:
+            if st.button('❤️ Like', key=f"detail_like_{product['PRODUCT_ID']}", use_container_width=True):
+                if st.session_state.user_id:
+                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                add_message('Product liked!')
+
+def log_interaction(session, user_id, product_id, interaction_type):
+    """Log user interactions with products"""
+    try:
+        query = f"""
+        INSERT INTO USER_INTERACTION_TABLE 
+        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) 
+        VALUES 
+        ({user_id}, {product_id}, '{interaction_type}', CURRENT_TIMESTAMP())
+        """
+        session.sql(query).collect()
+        return True
+    except Exception as e:
+        print(f"Error logging interaction: {str(e)}")
+        return False
+
+def fetch_recommendations(session, search_query, num_results=6):
+    """Fetch product recommendations based on search query"""
+    try:
+        # Replace this with your actual recommendation logic
+        query = f"""
+        SELECT * FROM PRODUCT_TABLE 
+        WHERE LOWER(TITLE) LIKE LOWER('%{search_query}%')
+        OR LOWER(DESCRIPTION) LIKE LOWER('%{search_query}%')
+        LIMIT {num_results}
+        """
+        results = session.sql(query).collect()
+        return pd.DataFrame(results)
+    except Exception as e:
+        print(f"Error fetching recommendations: {str(e)}")
+        return pd.DataFrame()
+
+def main():
+    st.set_page_config(page_title="Smart Shopping", layout="wide")
+    
+    # Initialize session state
+    init_session_state()
+    
+    # Display any pending messages
+    display_messages()
+    
+    # Display header section
+    header_section()
+    
+    if st.session_state.page == 'home':
+        st.markdown("## 🔍 Smart Product Search")
+        
+        # Search section
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            search_query = st.text_input(
+                "",
+                placeholder="E.g., 'wedding outfit' or 'running shoes'",
+                key="search_input"
+            )
+        with col2:
+            search_button = st.button("Search", use_container_width=True)
+        
+        # Results container
+        results_container = st.container()
+        
+        if search_button and search_query:
+            with st.spinner('Finding products...'):
+                try:
+                    suggestions_df = fetch_recommendations(session, search_query)
+                    
+                    with results_container:
+                        if not suggestions_df.empty:
+                            st.success('Here are some products you might like!')
+                            
+                            for i in range(0, len(suggestions_df), 2):
+                                cols = st.columns(2)
+                                if i < len(suggestions_df):
+                                    display_product_card(suggestions_df.iloc[i], cols[0], session, f"search_{i}_left")
+                                if i + 1 < len(suggestions_df):
+                                    display_product_card(suggestions_df.iloc[i + 1], cols[1], session, f"search_{i}_right")
+                        else:
+                            st.info("No products found matching your search.")
+                
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
+        
+        # Show trending products if no search performed
+        elif not st.session_state.search_performed:
+            with results_container:
+                st.markdown("### 📈 Trending Products")
+                try:
+                    default_products = session.sql("""
+                        SELECT * FROM PRODUCT_TABLE 
+                        ORDER BY RANDOM() 
+                        LIMIT 6
+                    """).collect()
+                    
+                    default_df = pd.DataFrame(default_products)
+                    
+                    if not default_df.empty:
+                        for i in range(0, len(default_df), 2):
+                            cols = st.columns(2)
+                            if i < len(default_df):
+                                display_product_card(default_df.iloc[i], cols[0], session, f"trend_{i}_left")
+                            if i + 1 < len(default_df):
+                                display_product_card(default_df.iloc[i + 1], cols[1], session, f"trend_{i}_right")
+                    else:
+                        st.info("No trending products available.")
+                        
+                except Exception as e
+                
+if __name__ == "__main__":
+    main()
