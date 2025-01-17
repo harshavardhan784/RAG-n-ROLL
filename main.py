@@ -625,7 +625,8 @@ def get_active_session():
             database=SNOWFLAKE_CONFIG["database"],
             schema=SNOWFLAKE_CONFIG["schema"]
         )
-        session = Session.builder.configs(conn).create()
+        session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
+
         return session
     
         # return conn
