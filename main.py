@@ -1,9 +1,10 @@
 import streamlit as st
 import snowflake.connector
-from snowflake.snowpark import Session
 import pandas as pd
 from datetime import datetime
 import json
+from snowflake.snowpark import Session
+
 
 
 import streamlit as st
@@ -625,11 +626,7 @@ def get_active_session():
             database=SNOWFLAKE_CONFIG["database"],
             schema=SNOWFLAKE_CONFIG["schema"]
         )
-        session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
-
-        return session
-    
-        # return conn
+        return conn
     except Exception as e:
         st.error(f"Failed to connect to Snowflake: {str(e)}")
         return None
@@ -637,17 +634,17 @@ def get_active_session():
 def execute_query(session, query):
     """Execute a query and return results as a DataFrame"""
     try:
-        # cur = session.cursor()
-        # cur.execute(query)
+        cur = session.cursor()
+        cur.execute(query)
         
-        # # # Get column names and results
-        # columns = [col[0] for col in cur.description]
-
+        # Get column names and results
+        columns = [col[0] for col in cur.description]
         # results = cur.fetchall()
+        session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
 
-        return session.sql(query).collect()
-
-        # return pd.DataFrame(results, columns=columns)
+        results = session.sql(query).collect()
+        
+        return pd.DataFrame(results, columns=columns)
     except Exception as e:
         st.error(f"Error executing query: {str(e)}")
         return pd.DataFrame()
