@@ -1005,8 +1005,8 @@ def display_product_card(product, col, session, idx):
                         transform: translateY(-5px);
                     }
                     .product-image-container {
-                        width: 300px;
-                        height: 300px;
+                        width: 120px;
+                        height: 120px;
                         overflow: hidden;
                         margin: 0 auto;
                         display: flex;
