@@ -627,7 +627,7 @@ def get_active_session():
         )
         session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
 
-        return session, conn
+        return session
     
         # return conn
     except Exception as e:
@@ -645,8 +645,9 @@ def execute_query(session, query):
 
         # results = cur.fetchall()
 
-    
         return session.sql(query).collect()
+
+        # return pd.DataFrame(results, columns=columns)
     except Exception as e:
         st.error(f"Error executing query: {str(e)}")
         return pd.DataFrame()
