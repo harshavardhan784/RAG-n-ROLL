@@ -1005,8 +1005,8 @@ def display_product_card(product, col, session, idx):
                         transform: translateY(-5px);
                     }
                     .product-image-container {
-                        width: 120px;
-                        height: 120px;
+                        width: 250px;
+                        height: 250px;
                         overflow: hidden;
                         margin: 0 auto;
                         display: flex;
@@ -1026,9 +1026,9 @@ def display_product_card(product, col, session, idx):
             # Display product image with consistent sizing
             st.markdown('<div class="product-image-container">', unsafe_allow_html=True)
             try:
-                st.image(product['IMAGE_LINKS'], use_column_width=False, width=300, output_format="auto")
+                st.image(product['IMAGE_LINKS'], use_column_width=200, output_format="auto")
             except:
-                st.image("https://via.placeholder.com/300", use_column_width=False, width=300)
+                st.image("https://via.placeholder.com/300", use_column_width=200)
             st.markdown('</div>', unsafe_allow_html=True)
             
             # Display product information
@@ -1091,8 +1091,8 @@ def display_product_details(product, session):
         st.markdown("""
             <style>
                 .zoom-container {
-                    width: 400px;
-                    height: 400px;
+                    width: 250px;
+                    height: 250px;
                     overflow: hidden;
                     margin: 20px auto;
                     position: relative;
