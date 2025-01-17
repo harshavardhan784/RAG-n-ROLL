@@ -635,10 +635,13 @@ def execute_query(session, query):
         cur = session.cursor()
         cur.execute(query)
         
-        # Get column names and results
+        # # Get column names and results
         columns = [col[0] for col in cur.description]
-        results = cur.fetchall()
         
+        # results = cur.fetchall()
+
+        results = session.sql(query).collect()
+
         return pd.DataFrame(results, columns=columns)
     except Exception as e:
         st.error(f"Error executing query: {str(e)}")
