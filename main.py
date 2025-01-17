@@ -960,7 +960,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
                 'USER_ID': user_id
             }
             interaction_df = pd.DataFrame([interaction_data])
-            session.write_pandas(interaction_df, 'USER_INTERACTIONS')
+            session.write_pandas(interaction_df, 'USER_INTERACTION_TABLE')
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
@@ -1117,10 +1117,10 @@ def display_product_details(product, session):
         
         st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
         try:
-            st.image(product['IMAGE_LINKS'], use_column_width=False, width=400, output_format="auto", 
+            st.image(product['IMAGE_LINKS'], use_column_width=200, output_format="auto", 
                     classes=['zoom-image'])
         except:
-            st.image("https://via.placeholder.com/400", use_column_width=False, width=400)
+            st.image("https://via.placeholder.com/400", use_column_width=200)
         st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
@@ -1200,7 +1200,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
         }
         
         interaction_df = pd.DataFrame([interaction_data])
-        session.write_pandas(interaction_df, 'USER_INTERACTIONS')
+        session.write_pandas(interaction_df, 'USER_INTERACTION_TABLE')
         
     except Exception as e:
         st.error(f"Error logging interaction: {str(e)}")
