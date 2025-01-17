@@ -1033,7 +1033,7 @@ def display_product_card(product, col, session, idx):
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
                     st.session_state.current_product = product
                     st.session_state.page = 'detail'
-                    st.rerun()
+                    # st.rerun()
             
             # Add to Cart button
             with cols[1]:
@@ -1061,7 +1061,7 @@ def display_product_details(product, session):
     if st.button("← Back to Search Results", key="back_to_search"):
         st.session_state.page = 'home'
         st.session_state.current_product = None
-        st.rerun()
+        # st.rerun()
     
     # Product title
     st.title(product['TITLE'])
@@ -1164,16 +1164,10 @@ def display_product_details(product, session):
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interactions with products"""
     try:
-        interaction_data = {
-            'USER_ID': user_id,
-            'PRODUCT_ID': product_id,
-            'INTERACTION_TYPE': interaction_type,
-            'INTERACTION_TIMESTAMP': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        interaction_df = pd.DataFrame([interaction_data])
-        session.write_pandas(interaction_df, 'USER_INTERACTION_TABLE')
+        query = "INSERT INTO USER_INTERACTION_TABLE (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) VALUES ('{user_id}', '{product_id}', '{interaction_type}', '{interaction_timestamp}'); "
+        session.sql(query).collect()
         return True
+
     except Exception as e:
         print(f"Error logging interaction: {str(e)}")
         return False
