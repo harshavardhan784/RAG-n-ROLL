@@ -1,5 +1,6 @@
 import streamlit as st
 import snowflake.connector
+from snowflake.snowpark import Session
 import pandas as pd
 from datetime import datetime
 import json
@@ -624,7 +625,10 @@ def get_active_session():
             database=SNOWFLAKE_CONFIG["database"],
             schema=SNOWFLAKE_CONFIG["schema"]
         )
-        return conn
+        session = Session.builder.configs(conn).create()
+        return session
+    
+        # return conn
     except Exception as e:
         st.error(f"Failed to connect to Snowflake: {str(e)}")
         return None
@@ -637,7 +641,7 @@ def execute_query(session, query):
         
         # # Get column names and results
         columns = [col[0] for col in cur.description]
-        
+
         # results = cur.fetchall()
 
         results = session.sql(query).collect()
