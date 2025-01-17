@@ -1244,14 +1244,13 @@ def fetch_recommendations(session, search_query, num_results=6):
         print(f"Error fetching recommendations: {str(e)}")
         return pd.DataFrame()
 
+
+
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
     
     # Initialize session state
     init_session_state()
-    
-    # Display any pending messages
-    display_messages()
     
     # Display header section
     header_section()
@@ -1259,29 +1258,32 @@ def main():
     if st.session_state.page == 'home':
         st.markdown("## 🔍 Smart Product Search")
         
-        # Search section
+        # Search section with button
         col1, col2 = st.columns([4, 1])
         with col1:
             search_query = st.text_input(
                 "",
-                placeholder="E.g., 'wedding outfit' or 'running shoes'",
+                placeholder="E.g., 'suggest me a good wedding outfit in india' or 'comfortable running shoes'",
                 key="search_input"
             )
         with col2:
-            search_button = st.button("Search", use_container_width=True)
+            search_button = st.button("Search", use_container_width=True, key="search_button")
         
-        # Results container
+        # Initialize container for results
         results_container = st.container()
         
+        # Only perform search when button is clicked
         if search_button and search_query:
-            with st.spinner('Finding products...'):
+            with st.spinner('Finding the perfect products for you...'):
                 try:
-                    suggestions_df = fetch_recommendations(session, search_query)
+                    suggestions_df = fetch_recommendations(session, search_query, 1)
                     
+                    # Display results in the container
                     with results_container:
                         if not suggestions_df.empty:
                             st.success('Here are some products you might like!')
                             
+                            # Display products in a grid
                             for i in range(0, len(suggestions_df), 2):
                                 cols = st.columns(2)
                                 if i < len(suggestions_df):
@@ -1293,12 +1295,14 @@ def main():
                 
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
+                    st.error("Please try a different search query.")
         
-        # Show trending products if no search performed
+        # Show trending products if no search has been performed
         elif not st.session_state.search_performed:
             with results_container:
                 st.markdown("### 📈 Trending Products")
                 try:
+                    # Get trending products
                     default_products = session.sql("""
                         SELECT * FROM PRODUCT_TABLE 
                         ORDER BY RANDOM() 
@@ -1315,9 +1319,13 @@ def main():
                             if i + 1 < len(default_df):
                                 display_product_card(default_df.iloc[i + 1], cols[1], session, f"trend_{i}_right")
                     else:
-                        st.info("No trending products available.")
+                        st.info("No trending products available at the moment.")
                         
-                except Exception as e
-                
+                except Exception as e:
+                    st.error(f"Error loading trending products: {str(e)}")
+
+    elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
+        display_product_details(st.session_state.current_product, session)
+
 if __name__ == "__main__":
     main()
