@@ -864,6 +864,22 @@ def get_recommendations(session, human_query, user_id):
         basic_query = "SELECT * FROM PRODUCT_TABLE ORDER BY RANDOM() LIMIT 6"
         return session.sql(basic_query).to_pandas()
 
+def cleanup_tables(session):
+    """Clean up temporary tables before running new recommendations"""
+    cleanup_queries = [
+        "DROP TABLE IF EXISTS AUGMENT_TABLE;",
+        "DROP TABLE IF EXISTS CONTEXT_TABLE;",
+        "DROP TABLE IF EXISTS PRODUCT_TABLE_STAGE;",
+        "DROP TABLE IF EXISTS RECOMMENDATIONS_TABLE;",
+        "DROP TABLE IF EXISTS TEMP_TABLE;"
+    ]
+    
+    for query in cleanup_queries:
+        try:
+            session.sql(query).collect()
+        except Exception as e:
+            print(f"Error cleaning up table: {str(e)}")
+            
 # # Modified get_recommendations function
 # def get_recommendations(session, human_query, user_id):
 #     # Clean up any existing temporary tables first
@@ -931,21 +947,7 @@ if 'page' not in st.session_state:
 if 'search_performed' not in st.session_state:
     st.session_state.search_performed = False
 
-def cleanup_tables(session):
-    """Clean up temporary tables before running new recommendations"""
-    cleanup_queries = [
-        "DROP TABLE IF EXISTS AUGMENT_TABLE;",
-        "DROP TABLE IF EXISTS CONTEXT_TABLE;",
-        "DROP TABLE IF EXISTS PRODUCT_TABLE_STAGE;",
-        "DROP TABLE IF EXISTS RECOMMENDATIONS_TABLE;",
-        "DROP TABLE IF EXISTS TEMP_TABLE;"
-    ]
-    
-    for query in cleanup_queries:
-        try:
-            session.sql(query).collect()
-        except Exception as e:
-            print(f"Error cleaning up table: {str(e)}")
+
 
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interactions with products"""
@@ -958,7 +960,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
                 'USER_ID': user_id
             }
             interaction_df = pd.DataFrame([interaction_data])
-            session.write_pandas(interaction_df, 'USER_INTERACTIONS')
+            session.write_pandas(interaction_df, 'USER_INTERACTION_TABLE')
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
@@ -981,61 +983,87 @@ def header_section():
             st.session_state.cart_items = []
             st.success("Cart cleared!")
 
+# Enhanced display_product_card function with consistent image sizing
 def display_product_card(product, col, session, idx):
-    """Display a single product card"""
+    """Display a single product card with consistent image sizing"""
     with col:
         with st.container():
             st.markdown("""
                 <style>
                     .product-card {
-                        padding: 10px;
+                        padding: 15px;
                         border: 1px solid #ddd;
                         border-radius: 10px;
                         margin: 10px 0;
+                        transition: transform 0.3s;
                     }
                     .product-card:hover {
                         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        transform: translateY(-5px);
+                    }
+                    .product-image-container {
+                        width: 300px;
+                        height: 300px;
+                        overflow: hidden;
+                        margin: 0 auto;
+                    }
+                    .product-image {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: contain;
+                        transition: transform 0.3s;
+                    }
+                    .product-image:hover {
+                        transform: scale(1.1);
                     }
                 </style>
             """, unsafe_allow_html=True)
             
             st.markdown('<div class="product-card">', unsafe_allow_html=True)
             
-            # Display product image
+            # Display product image with consistent sizing
+            st.markdown('<div class="product-image-container">', unsafe_allow_html=True)
             try:
-                st.image(product['IMAGE_LINKS'], use_column_width=True)
+                st.image(product['IMAGE_LINKS'], use_column_width=False, width=300)
             except:
-                st.write("Image not available")
+                st.image("https://via.placeholder.com/300", use_column_width=False, width=300)
+            st.markdown('</div>', unsafe_allow_html=True)
             
             # Display product information
             st.markdown(f"### {product['TITLE'][:50]}...")
-            # st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
-            # st.write(f"💰 Price: ₹{product['MRP']:,.2f}")
+            st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
+            st.write(f"💰 Price: ₹{product['SELLING_PRICE']:,.2f}")
             
             # Action buttons
-            cols = st.columns(2)
+            cols = st.columns(3)
+            
+            # View Details button
             with cols[0]:
                 if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
                     st.session_state.current_product = product
                     st.session_state.page = 'detail'
-                    if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, 
-                                     product['PRODUCT_ID'], 'view')
                     st.experimental_rerun()
             
+            # Add to Cart button
             with cols[1]:
                 if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
-                        if st.session_state.user_id:
-                            log_interaction(session, st.session_state.user_id, 
-                                         product['PRODUCT_ID'], 'add_to_cart')
+                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
                         st.success('Added to cart!')
+            
+            # Like button
+            with cols[2]:
+                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
+                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                    st.success('Product liked!')
             
             st.markdown('</div>', unsafe_allow_html=True)
 
+# Enhanced display_product_details function with improved image zoom
 def display_product_details(product, session):
-    """Display detailed information about a product"""
+    """Display detailed product information with enhanced image zoom"""
     st.markdown("---")
     
     # Back button
@@ -1051,61 +1079,42 @@ def display_product_details(product, session):
     col1, col2 = st.columns([1, 1])
     
     with col1:
+        st.markdown("""
+            <style>
+                .zoom-container {
+                    width: 400px;
+                    height: 400px;
+                    overflow: hidden;
+                    margin: 20px auto;
+                    position: relative;
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                }
+                .zoom-image {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                    transition: transform 0.5s ease;
+                    cursor: zoom-in;
+                }
+                .zoom-image:hover {
+                    transform: scale(1.8);
+                    transform-origin: 50% 50%;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
         try:
-            # st.markdown("""
-            #     <style>
-            #         .zoom-container {
-            #             overflow: hidden;
-            #             margin: 20px;
-            #         }
-            #         .zoom-container img {
-            #             transition: transform .5s ease;
-            #             cursor: zoom-in;
-            #         }
-            #         .zoom-container img:hover {
-            #             transform: scale(1.5);
-            #         }
-            #     </style>
-            # """, unsafe_allow_html=True)
-            try:
-                st.markdown("""
-                    <style>
-                        .zoom-container {
-                            overflow: hidden;
-                            margin: 20px;
-                            width: 300px;  /* Fixed width */
-                            height: 300px; /* Fixed height */
-                        }
-                        .zoom-container img {
-                            width: 100%;  /* Ensures the image fits within the fixed container */
-                            height: 100%; /* Ensures the image fits within the fixed container */
-                            object-fit: cover;  /* Maintains aspect ratio within container */
-                            transition: transform .5s ease;
-                            cursor: zoom-in;
-                        }
-                        .zoom-container img:hover {
-                            transform: scale(1.5);
-                        }
-                    </style>
-                """, unsafe_allow_html=True)
-                
-                st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
-                st.image(product['IMAGE_LINKS'], width=300)  # Fixed width of 300 pixels
-                st.markdown('</div>', unsafe_allow_html=True)
-            except:
-                st.write("Image not available")
-            
-
-            
-            st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
-            st.image(product['IMAGE_LINKS'], use_column_width=100)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.image(product['IMAGE_LINKS'], use_column_width=False, width=400, output_format="auto")
         except:
-            st.write("Image not available")
+            st.image("https://via.placeholder.com/400", use_column_width=False, width=400)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col2:
         st.markdown("### Product Details")
         
+        # Product information box
         st.markdown("""
             <style>
                 .info-box {
@@ -1118,142 +1127,62 @@ def display_product_details(product, session):
         """, unsafe_allow_html=True)
         
         st.markdown('<div class="info-box">', unsafe_allow_html=True)
-        st.write(f"**Category Path:**")
-        st.write(f"{product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
+        st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
+        st.write(f"**MRP:** ₹{product['MRP']:,.2f}")
+        st.write(f"**Selling Price:** ₹{product['SELLING_PRICE']:,.2f}")
+        st.write(f"**Discount:** {((product['MRP'] - product['SELLING_PRICE'])/product['MRP'] * 100):.1f}%")
         
-        # st.write(f"**Price:** ₹{product['MRP']:,.2f}")
-        
-        st.write(f"**Seller Information:**")
+        st.write("**Seller Information:**")
         st.write(f"Name: {product['SELLER_NAME']}")
         st.write(f"Rating: ⭐{product['SELLER_RATING']}/5")
         
-        # st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
+        st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
         st.markdown('</div>', unsafe_allow_html=True)
         
         # Action buttons
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", 
-                        use_container_width=100):
+            if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
                 if product['PRODUCT_ID'] not in st.session_state.cart_items:
                     st.session_state.cart_items.append(product['PRODUCT_ID'])
-                    if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, 
-                                     product['PRODUCT_ID'], 'add_to_cart')
+                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
                     st.success('Added to cart!')
         
         with col2:
-            if st.button('Buy Now', key=f"buy_{product['PRODUCT_ID']}", 
-                        use_container_width=100):
-                if st.session_state.user_id:
-                    log_interaction(session, st.session_state.user_id, 
-                                  product['PRODUCT_ID'], 'purchase')
+            if st.button('Buy Now', key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchased')
                 st.success('Order placed successfully!')
-    
-    # Product information tabs
-    st.markdown("### Product Information")
-    tab1, tab2 = st.tabs(["Description", "Highlights"])
-    
-    with tab1:
-        st.markdown(f"<div class='info-box'>{product['DESCRIPTION']}</div>", 
-                   unsafe_allow_html=True)
-    
-    with tab2:
-        try:
-            highlights_list = json.loads(product['HIGHLIGHTS']) if product['HIGHLIGHTS'] else []
-            for highlight in highlights_list:
-                st.markdown(f"• {highlight}")
-        except:
-            st.write("No highlights available")
-
-def main():
-    st.set_page_config(page_title="Smart Shopping", layout="wide")
-    
-    
-    # Display header section
-    header_section()
-    
-    if st.session_state.page == 'home':
-        st.markdown("## 🔍 Smart Product Search")
         
-        # Search section with button
-        col1, col2 = st.columns([4, 1])
-        with col1:
-            search_query = st.text_input(
-                "",
-                placeholder="E.g., 'suggest me a good wedding outfit in india' or 'comfortable running shoes'",
-                key="search_input"
-            )
-        with col2:
-            search_button = st.button("Search", use_container_width=100, key="search_button")
-        
-        # Initialize container for results
-        results_container = st.container()
-        
-        # Only perform search when button is clicked
-        if search_button and search_query:
-            with st.spinner('Finding the perfect products for you...'):
-                try:
-                    # # Get trending products (you'll need to implement this function)
-                    # trending_products = session.sql("""
-                    #     SELECT * FROM PRODUCT_TABLE 
-                    #     WHERE PRODUCT_RATING > 4.0 
-                    #     ORDER BY RANDOM() 
-                    #     LIMIT 6
-                    # """).collect()
-                    
-                    suggestions_df = fetch_recommendations(session, search_query, 1)
-                    st.write(suggestions_df)
-                    # Display results in the container
-                    with results_container:
-                        if not suggestions_df.empty:
-                            st.success('Here are some products you might like!')
-                            
-                            # Display products in a grid
-                            for i in range(0, len(suggestions_df), 2):
-                                cols = st.columns(2)
-                                if i < len(suggestions_df):
-                                    display_product_card(suggestions_df.iloc[i], cols[0], session, f"search_{i}_left")
-                                if i + 1 < len(suggestions_df):
-                                    display_product_card(suggestions_df.iloc[i + 1], cols[1], session, f"search_{i}_right")
-                        else:
-                            st.info("No products found matching your search.")
-                
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
-                    st.error("Please try a different search query.")
-        
-        # Show trending products if no search has been performed
-        elif not st.session_state.get('search_performed', False):
-            with results_container:
-                st.markdown("### 📈 Trending Products")
-                try:
-                    # Get trending products
-                    default_products = session.sql("""
-                        SELECT * FROM PRODUCT_TABLE 
-                        ORDER BY RANDOM() 
-                        LIMIT 6
-                    """).collect()
-                    
-                    default_df = pd.DataFrame(default_products)
-                    
-                    if not default_df.empty:
-                        for i in range(0, len(default_df), 2):
-                            cols = st.columns(2)
-                            if i < len(default_df):
-                                display_product_card(default_df.iloc[i], cols[0], session, f"trend_{i}_left")
-                            if i + 1 < len(default_df):
-                                display_product_card(default_df.iloc[i + 1], cols[1], session, f"trend_{i}_right")
-                    else:
-                        st.info("No trending products available at the moment.")
-                        
-                except Exception as e:
-                    st.error(f"Error loading trending products: {str(e)}")
+        with col3:
+            if st.button('❤️ Like', key=f"detail_like_{product['PRODUCT_ID']}", use_container_width=True):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                st.success('Product liked!')
+
+# Enhanced log_interaction function with error handling and validation
+def log_interaction(session, user_id, product_id, interaction_type):
+    """Log user interactions with products with enhanced validation"""
+    if not user_id:
+        st.warning("Please login with your User ID to track interactions")
+        return
     
-    elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
-        display_product_details(st.session_state.current_product, session)
-
-if __name__ == "__main__":
-    main()
-
-
+    valid_interaction_types = ['view', 'add_to_cart', 'purchased', 'like', 'return']
+    
+    if interaction_type not in valid_interaction_types:
+        st.error(f"Invalid interaction type: {interaction_type}")
+        return
+    
+    try:
+        interaction_data = {
+            'USER_ID': user_id,
+            'PRODUCT_ID': product_id,
+            'INTERACTION_TYPE': interaction_type,
+            'INTERACTION_TIMESTAMP': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        interaction_df = pd.DataFrame([interaction_data])
+        session.write_pandas(interaction_df, 'USER_INTERACTION_TABLE')
+        
+    except Exception as e:
+        st.error(f"Error logging interaction: {str(e)}")
+        # Log error for debugging
+        print(f"Error details: {str(e)}")
