@@ -698,61 +698,7 @@ def cleanup_tables(session):
             session.sql(query).collect()
         except Exception as e:
             print(f"Error cleaning up table: {str(e)}")
-            
-# # Modified get_recommendations function
-# def get_recommendations(session, human_query, user_id):
-#     # Clean up any existing temporary tables first
-#     cleanup_tables(session)
-    
-#     try:
-#         human_query = human_query.replace('"', '').replace("'", "")
-        
-#         # Get Mistral query
-#         mistral_query = get_mistral_query(session, human_query)
-#         mistral_query = mistral_query.replace('"', '').replace("'", "")
-        
-#         print(f"Original query: {human_query}")
-#         print(f"Processed query: {mistral_query}")
-        
-#         # Create fresh temporary table
-#         create_query = """
-#         CREATE OR REPLACE TABLE TEMP_TABLE AS 
-#         SELECT * FROM PRODUCT_TABLE 
-#         WHERE 1=1 
-#         """
-#         session.sql(create_query).collect()
-        
-#         # Run the search pipeline
-#         filter_temp_table(session, mistral_query)
-        
-#         if user_id:
-#             # Get user context and filter
-#             context = construct_context(session, user_id)
-#             filter_context_table(session, mistral_query)
-            
-#             # Perform semantic search
-#             perform_semantic_search(session, user_id, rank=100, threshold=0.3)
-        
-#         # Get final recommendations
-#         final_df = filter_augment_table(session, mistral_query)
-        
-#         if final_df.empty:
-#             # Fallback to basic recommendations
-#             fallback_query = """
-#             SELECT * FROM PRODUCT_TABLE 
-#             WHERE PRODUCT_RATING > 3.0 
-#             ORDER BY RANDOM() 
-#             LIMIT 10
-#             """
-#             final_df = session.sql(fallback_query).to_pandas()
-        
-#         return final_df
-        
-    # except Exception as e:
-    #     print(f"Error in get_recommendations: {str(e)}")
-    #     # Return basic recommendations on error
-    #     basic_query = "SELECT * FROM PRODUCT_TABLE ORDER BY RANDOM() LIMIT 6"
-    #     return session.sql(basic_query).to_pandas()
+
 
 def header_section():
     """Create the header section of the application"""
@@ -853,175 +799,127 @@ def log_interaction(session, user_id, product_id, interaction_type):
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
-def display_product_card(product, column, session, key_prefix):
-    """Display product card with improved styling and interaction logging"""
+def record_interaction(session, user_id, product_id, interaction_type):
+    try:
+        interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        session.sql(f"""
+            INSERT INTO USER_INTERACTIONS
+            (INTERACTION_ID, USER_ID, PRODUCT_ID, INTERACTION_TYPE)
+            VALUES (
+                '{interaction_id}',
+                {user_id},
+                '{product_id}',
+                '{interaction_type}'
+            )
+        """).collect()
+        return True
+    except Exception as e:
+        st.error(f"Error recording interaction: {str(e)}")
+        return False
+def get_user_history_products(session, user_id, limit=2):
+    """Fetch products from user's interaction history"""
+    query = f"""
+    SELECT DISTINCT p.*
+    FROM PRODUCT_TABLE p
+    JOIN USER_INTERACTION_TABLE u ON p.PRODUCT_ID = u.PRODUCT_ID
+    WHERE u.USER_ID = {user_id}
+    LIMIT {limit}
+    """
+    return session.sql(query).to_pandas()
+
+def get_random_products(session, limit=8):
+    """Fetch random products to fill the remainder"""
+    query = f"""
+    SELECT *
+    FROM PRODUCT_TABLE
+    ORDER BY RANDOM()
+    LIMIT {limit}
+    """
+    return session.sql(query).to_pandas()
+
+def display_product_card(product, column, session):
+    """Display product card with interaction buttons"""
     with column:
-        with st.container():
-            st.markdown("""
-                <style>
-                    .product-card {
-                        border: 1px solid #ddd;
-                        padding: 10px;
-                        border-radius: 8px;
-                        margin-bottom: 15px;
-                    }
-                </style>
-            """, unsafe_allow_html=True)
+        try:
+            st.image(product['IMAGE_LINKS'], use_column_width=True)
+        except:
+            st.image("https://via.placeholder.com/200", use_column_width=True)
             
-            st.markdown('<div class="product-card">', unsafe_allow_html=True)
-            
-            # Display product image
-            if product['IMAGE_LINKS']:
-                st.image(product['IMAGE_LINKS'], use_column_width=True)
-            else:
-                st.image("https://via.placeholder.com/200", use_column_width=True)
-            
-            # Product details
-            st.markdown(f"**{product['TITLE'][:50]}...**" if len(product['TITLE']) > 50 else f"**{product['TITLE']}**")
-            st.write(f"Price: ₹{float(product['MRP']):.2f}")
-            st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("View Details", key=f"{key_prefix}_view_{product['PRODUCT_ID']}"):
-                    # Log interaction
-                    session.sql(f"""
-                        INSERT INTO USER_INTERACTION_TABLE 
-                        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-                        VALUES (
-                            {st.session_state.user_id},
-                            '{product['PRODUCT_ID']}',
-                            'view_details',
-                            CURRENT_TIMESTAMP()
-                        )
-                    """).collect()
-                    
-                    st.session_state.current_product = product
-                    st.session_state.page = 'detail'
-                    st.rerun()
-            
-            with col2:
-                if st.button("Add to Cart", key=f"{key_prefix}_cart_{product['PRODUCT_ID']}"):
-                    # Log interaction
-                    session.sql(f"""
-                        INSERT INTO USER_INTERACTION_TABLE 
-                        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-                        VALUES (
-                            {st.session_state.user_id},
-                            '{product['PRODUCT_ID']}',
-                            'add_to_cart',
-                            CURRENT_TIMESTAMP()
-                        )
-                    """).collect()
-                    st.success("Added to cart!")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f"**{product['TITLE'][:50]}...**")
+        st.write(f"Price: ₹{float(product['MRP']):.2f}")
+        st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("❤️ Like", key=f"like_{product['PRODUCT_ID']}"):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                st.success("Product liked!")
+                
+            if st.button("🛒 Add to Cart", key=f"cart_{product['PRODUCT_ID']}"):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                st.success("Added to cart!")
+                
+        with col2:
+            if st.button("👁️ View Details", key=f"view_{product['PRODUCT_ID']}"):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
+                st.session_state.current_product = product
+                st.session_state.page = 'detail'
+                st.rerun()
+                
+            if st.button("💰 Purchase", key=f"buy_{product['PRODUCT_ID']}"):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchase')
+                st.success("Purchase successful!")
 
 def display_product_details(product, session):
-    """Display detailed product information with improved layout and interaction logging"""
-    st.markdown("---")
-    
-    if st.button("← Back to Products", key="back_to_products"):
-        st.session_state.page = 'home'
-        st.session_state.current_product = None
-        st.rerun()
-    
-    st.title(product['TITLE'])
+    """Display detailed product page"""
+    st.button("← Back", on_click=lambda: setattr(st.session_state, 'page', 'home'))
     
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        if product['IMAGE_LINKS']:
+        try:
             st.image(product['IMAGE_LINKS'], width=400)
-        else:
+        except:
             st.image("https://via.placeholder.com/400", width=400)
-    
+            
     with col2:
-        st.markdown("### Product Information")
-        st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
+        st.title(product['TITLE'])
+        st.markdown("### Product Details")
         st.write(f"**Price:** ₹{float(product['MRP']):.2f}")
+        st.write(f"**Rating:** {float(product['PRODUCT_RATING'])}⭐")
         st.write(f"**Seller:** {product['SELLER_NAME']}")
-        st.write(f"**Seller Rating:** {float(product['SELLER_RATING'])}⭐")
-        st.write(f"**Product Rating:** {float(product['PRODUCT_RATING'])}⭐")
+        st.write(f"**Category:** {product['CATEGORY_1']} > {product['CATEGORY_2']} > {product['CATEGORY_3']}")
+        
+        # Highlights
+        st.markdown("### Highlights")
+        highlights = json.loads(product['HIGHLIGHTS']) if isinstance(product['HIGHLIGHTS'], str) else product['HIGHLIGHTS']
+        if highlights:
+            for highlight in highlights:
+                st.write(f"• {highlight}")
+                
+        # Description
+        st.markdown("### Description")
+        st.write(product['DESCRIPTION'])
         
         # Action buttons
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("Add to Cart", key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
-                # Log interaction
-                session.sql(f"""
-                    INSERT INTO USER_INTERACTION_TABLE 
-                    (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-                    VALUES (
-                        {st.session_state.user_id},
-                        '{product['PRODUCT_ID']}',
-                        'add_to_cart',
-                        CURRENT_TIMESTAMP()
-                    )
-                """).collect()
-                st.success("Added to cart!")
-        
+            if st.button("❤️ Like", key=f"detail_like_{product['PRODUCT_ID']}", use_container_width=True):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                st.success("Product liked!")
+                
         with col2:
-            if st.button("Buy Now", key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
-                # Log interaction
-                session.sql(f"""
-                    INSERT INTO USER_INTERACTION_TABLE 
-                    (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-                    VALUES (
-                        {st.session_state.user_id},
-                        '{product['PRODUCT_ID']}',
-                        'purchase',
-                        CURRENT_TIMESTAMP()
-                    )
-                """).collect()
-                st.success("Order placed successfully!")
-
-def auth_page(session):
-    st.title("Welcome to Smart Shopping")
-    
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
-    
-    with tab1:
-        st.header("Login")
-        username = st.text_input("Username", key="login_username")
-        password = st.text_input("Password", type="password", key="login_password")
-        
-        if st.button("Login"):
-            if username and password:
-                user_id = login_user(session, username, password)
-                if user_id:
-                    st.session_state.logged_in = True
-                    st.session_state.user_id = user_id
-                    st.session_state.page = 'home'
-                    st.rerun()
-                else:
-                    st.error("Invalid credentials")
-            else:
-                st.warning("Please fill in all fields")
-    
-    with tab2:
-        st.header("Sign Up")
-        new_username = st.text_input("Username", key="new_username")
-        new_email = st.text_input("Email", key="new_email")
-        new_password = st.text_input("Password", type="password", key="new_password")
-        confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password")
-        
-        if st.button("Sign Up"):
-            if new_username and new_email and new_password and confirm_password:
-                if new_password != confirm_password:
-                    st.error("Passwords do not match")
-                else:
-                    result = register_user(session, new_username, new_email, new_password)
-                    if result is True:
-                        st.success("Registration successful! Please login.")
-                    else:
-                        st.error(result)
-            else:
-                st.warning("Please fill in all fields")
+            if st.button("🛒 Add to Cart", key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                st.success("Added to cart!")
+                
+        with col3:
+            if st.button("💰 Purchase", key=f"detail_buy_{product['PRODUCT_ID']}", use_container_width=True):
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchase')
+                st.success("Purchase successful!")
 
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
-    # session = get_active_session()  # You'll need to implement this
     init_session_state()
     
     if not st.session_state.logged_in:
@@ -1031,34 +929,46 @@ def main():
     # Header with logout
     col1, col2 = st.columns([6,1])
     with col1:
-        st.title("Smart Shopping")
+        st.title("🛍️ Smart Shopping")
     with col2:
         if st.button("Logout"):
-            st.session_state.logged_in = False
-            st.session_state.user_id = None
-            st.session_state.page = 'auth'
+            for key in st.session_state.keys():
+                del st.session_state[key]
             st.rerun()
     
     # Main content
     if st.session_state.page == 'home':
-        st.markdown("## 🔍 Product Search")
-        search_query = st.text_input("", placeholder="Search for products...")
+        # Search bar
+        st.markdown("### 🔍 Search Products")
+        search_query = st.text_input("", placeholder="What are you looking for today?")
         
-        if st.button("Search"):
-            with st.spinner('Searching...'):
-                try:
-                    results_df = fetch_recommendations(session, search_query, 1)
+        if search_query:
+            if st.button("Search"):
+                with st.spinner('Searching for products...'):
+                    results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
                     if not results_df.empty:
-                        for i in range(0, len(results_df), 2):
-                            cols = st.columns(2)
-                            if i < len(results_df):
-                                display_product_card(results_df.iloc[i], cols[0], session, i)
-                            if i + 1 < len(results_df):
-                                display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
+                        st.markdown("### Search Results")
+                        for i in range(0, len(results_df), 3):
+                            cols = st.columns(3)
+                            for j in range(3):
+                                if i + j < len(results_df):
+                                    display_product_card(results_df.iloc[i + j], cols[j], session)
                     else:
-                        st.info("No products found.")
-                except Exception as e:
-                    st.error(f"Search error: {str(e)}")
+                        st.info("No products found matching your search.")
+        
+        # Show user history and random products
+        else:
+            st.markdown("### Based on Your History")
+            history_products = get_user_history_products(session, st.session_state.user_id)
+            random_products = get_random_products(session, 10 - len(history_products))
+            
+            # Display all products in 3 columns
+            all_products = pd.concat([history_products, random_products])
+            for i in range(0, len(all_products), 3):
+                cols = st.columns(3)
+                for j in range(3):
+                    if i + j < len(all_products):
+                        display_product_card(all_products.iloc[i + j], cols[j], session)
     
     elif st.session_state.page == 'detail' and st.session_state.current_product:
         display_product_details(st.session_state.current_product, session)
