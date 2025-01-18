@@ -1090,8 +1090,10 @@ def main():
             with st.spinner('Searching...'):
                 try:
                     count = 1
-                    while not results_df.empty and count<3:
+                    while count<3:
                         results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
+                        if not results_df.empty:
+                            break
                         count += 1
                     if not results_df.empty:
                         for i in range(0, len(results_df), 2):
