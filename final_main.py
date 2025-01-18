@@ -884,20 +884,26 @@ def get_random_products(session, limit=8):
     return session.sql(query).to_pandas()
 
 def handle_product_interaction(session, user_id, product_id, interaction_type):
-    """Handle product interactions without causing page refresh"""
-    log_interaction(session, user_id, product_id, interaction_type)
+    """Handle product interactions without causing page refresh issues"""
     
-    # Store interaction in session state to show success message
+    # Ensure session state for interactions exists
     if 'interactions' not in st.session_state:
         st.session_state.interactions = {}
     
     interaction_key = f"{interaction_type}_{product_id}"
-    st.session_state.interactions[interaction_key] = True
+    
+    # Only log the interaction if it's not already logged (prevents repeated actions on refresh)
+    if interaction_key not in st.session_state.interactions:
+        log_interaction(session, user_id, product_id, interaction_type)
+        st.session_state.interactions[interaction_key] = True
+    
+    # 🔴 Prevent entire script re-running by using `st.rerun()`
+    st.rerun()  
+
 
 def display_product_card(product, column, session):
     """Display product card with interaction buttons"""
     with column:
-        # Container for the whole card
         with st.container():
             try:
                 st.image(product['IMAGE_LINKS'], use_column_width=True)
@@ -908,31 +914,27 @@ def display_product_card(product, column, session):
             st.write(f"Price: ₹{float(product['MRP']):.2f}")
             st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
             
-            # Generate unique keys for each interaction
             product_id = product['PRODUCT_ID']
-            like_key = f"like_{product_id}"
-            cart_key = f"cart_{product_id}"
-            view_key = f"view_{product_id}"
-            buy_key = f"buy_{product_id}"
             
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("❤️ Like", key=like_key):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'like')
-                    
-                if st.button("🛒 Add to Cart", key=cart_key):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'add_to_cart')
-                    
+                st.button("❤️ Like", key=f"like_{product_id}", 
+                          on_click=handle_product_interaction, 
+                          args=(session, st.session_state.user_id, product_id, 'like'))
+                
+                st.button("🛒 Add to Cart", key=f"cart_{product_id}", 
+                          on_click=handle_product_interaction, 
+                          args=(session, st.session_state.user_id, product_id, 'add_to_cart'))
+                
             with col2:
-                if st.button("👁️ View Details", key=view_key):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'view')
-                    st.session_state.current_product = product
-                    st.session_state.page = 'detail'
-                    
-                if st.button("💰 Purchase", key=buy_key):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'purchase')
+                st.button("👁️ View Details", key=f"view_{product_id}", 
+                          on_click=lambda: go_to_product_details(product))  # Fixed navigation
+                
+                st.button("💰 Purchase", key=f"buy_{product_id}", 
+                          on_click=handle_product_interaction, 
+                          args=(session, st.session_state.user_id, product_id, 'purchase'))
             
-            # Show success messages if interaction occurred
+            # Show success messages without disappearing on refresh
             for interaction_type in ['like', 'cart', 'buy']:
                 interaction_key = f"{interaction_type}_{product_id}"
                 if interaction_key in st.session_state.interactions:
@@ -942,8 +944,13 @@ def display_product_card(product, column, session):
                         'buy': "Purchase successful!"
                     }
                     st.success(message_map[interaction_type])
-                    # Clear the interaction after showing
-                    del st.session_state.interactions[interaction_key]
+
+# 🔴 Fix navigation to details page
+def go_to_product_details(product):
+    """Navigate to product details without losing session state"""
+    st.session_state.current_product = product
+    st.session_state.page = 'detail'
+    st.rerun()
 
 def display_product_details(product, session):
     """Display detailed product page"""
@@ -1045,16 +1052,15 @@ def main():
         if st.button("Search", key="search_button") and search_query:
             with st.spinner('Searching for products...'):
                 results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
+                
                 if not results_df.empty:
-                    st.markdown("### Search Results")
-                    for i in range(0, len(results_df), 3):
-                        cols = st.columns(3)
-                        for j in range(3):
-                            if i + j < len(results_df):
-                                display_product_card(results_df.iloc[i + j], cols[j], session)
+                    st.session_state.search_results = results_df  # Store in session
+                    st.session_state.page = 'search_results'  # Navigate without reset
+                    st.rerun()  # 🔴 Rerun after saving state
                 else:
                     st.info("No products found matching your search.")
-        
+
+                
         # Show user history and random products if no search is performed
         if not search_query:
             st.markdown("### Based on Your History")
