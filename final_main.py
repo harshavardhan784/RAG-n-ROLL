@@ -893,11 +893,11 @@ def log_interaction(session, user_id, product_id, interaction_type):
     
     try:
         # Correct SQL query with proper parameter placeholders for Snowflake
-        sql_query = """
+        sql_query = f"
             INSERT INTO USER_INTERACTION_TABLE 
             (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
             VALUES ({user_id}, {product_id}, {interaction_type}, {current_timestamp})
-        """
+        "
         
         session.sql(sql_query).collect()
         
