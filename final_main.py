@@ -920,7 +920,7 @@ def handle_product_interaction(session, user_id, product_id, interaction_type):
     if 'interactions' not in st.session_state:
         st.session_state.interactions = {}
     
-    interaction_key = f"{interaction_type}_{product_id}"
+    interaction_key = f"{interaction_type}_{product_id}_{user_id}"
     
     # Only log the interaction if it's not already logged (prevents repeated actions on refresh)
     if interaction_key not in st.session_state.interactions:
@@ -953,12 +953,14 @@ def display_product_card(product, column, session):
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("❤️ Like", key=like_key):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, "like")
                     st.toast("Product Liked!")
+                    handle_product_interaction(session, st.session_state.user_id, product_id, "like")
+                    
 
                 if st.button("🛒 Add to Cart", key=cart_key):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart")
                     st.toast("Added to Cart!")
+                    handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart")
+                    
 
             with col2:
                 if st.button("👁️ View Details", key=view_key):
@@ -967,8 +969,9 @@ def display_product_card(product, column, session):
                     st.rerun()  # Ensures only necessary rerun happens
 
                 if st.button("💰 Purchase", key=buy_key):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, "purchase")
                     st.toast("Purchase Successful!")
+                    handle_product_interaction(session, st.session_state.user_id, product_id, "purchase")
+                    
 
 # 🔴 Fix navigation to details page
 def go_to_product_details(product):
