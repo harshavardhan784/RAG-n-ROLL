@@ -812,16 +812,24 @@ def register_user(session, username, email, password):
         if existing_user[0]['COUNT'] > 0:
             return "Username or email already exists"
         
-        # Insert new user
-        session.sql(f"""
-            INSERT INTO USER_TABLE (USERNAME, EMAIL, PASSWORD_HASH)
-            VALUES ('{username}', '{email}', '{password_hash}')
-        """).collect()
+        # Get the maximum current USER_ID
+        max_user_id = session.sql("""
+            SELECT COALESCE(MAX(USER_ID), 1000) AS max_id FROM USER_TABLE
+        """).collect()[0]['MAX_ID']
         
-        return True
+        new_user_id = max_user_id + 1  # Increment by 1
+
+        # Insert new user with explicit USER_ID
+        session.sql(f"""
+            INSERT INTO USER_TABLE (USER_ID, USERNAME, EMAIL, PASSWORD_HASH)
+            VALUES ({new_user_id}, '{username}', '{email}', '{password_hash}')
+        """).execute()
+        
+        return new_user_id  # Return the assigned USER_ID
         
     except Exception as e:
         return str(e)
+
 
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interaction with products according to the actual table schema"""
@@ -841,53 +849,39 @@ def log_interaction(session, user_id, product_id, interaction_type):
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
-def display_product_card(product, col, session, idx):
-    with col:
-        with st.container():
-            st.markdown("""
-                <style>
-                    .product-card {
-                        padding: 15px;
-                        border: 1px solid #ddd;
-                        border-radius: 10px;
-                        margin: 10px 0;
-                        background-color: white;
-                    }
-                    .product-card:hover {
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                    }
-                </style>
-            """, unsafe_allow_html=True)
-            
-            st.markdown('<div class="product-card">', unsafe_allow_html=True)
-            
-            try:
-                st.image(product['IMAGE_LINKS'], use_column_width=True)
-            except:
-                st.write("Image not available")
-            
-            st.markdown(f"### {product['TITLE'][:50]}...")
-            
-            cols = st.columns(2)
-            with cols[0]:
-                if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+
+def display_product_card(product, column, session, key_prefix):
+    """Display product card with view details and add to cart functionality"""
+    with column:
+        st.image(product['IMAGE_LINKS'], use_column_width=True)
+        st.markdown(f"**{product['TITLE']}**")
+        st.write(f"Price: ${product['SELLING_PRICE']:.2f}")
+        st.write(f"Rating: {product['PRODUCT_RATING']}⭐")
+       
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("View Details", key=f"{key_prefix}_view"):
+                if st.session_state.logged_in:
+                    # Record the view_details interaction
+                    record_interaction(session, st.session_state.user_id,
+                                    product['PRODUCT_ID'], 'view_details')
+                    # Store the current product in session state
                     st.session_state.current_product = product
+                    # Change page to detail view
                     st.session_state.page = 'detail'
-                    if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, 
-                                     product['PRODUCT_ID'], 'view')
-                    st.experimental_rerun()
-            
-            with cols[1]:
-                if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
-                    if product['PRODUCT_ID'] not in st.session_state.cart_items:
-                        st.session_state.cart_items.append(product['PRODUCT_ID'])
-                        if st.session_state.user_id:
-                            log_interaction(session, st.session_state.user_id, 
-                                         product['PRODUCT_ID'], 'add_to_cart')
-                        st.success('Added to cart!')
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+                    st.rerun()
+                else:
+                    st.warning("Please login to view product details")
+       
+        with col2:
+            if st.button("Add to Cart", key=f"{key_prefix}_cart"):
+                if st.session_state.logged_in:
+                    record_interaction(session, st.session_state.user_id,
+                                    product['PRODUCT_ID'], 'add_to_cart')
+                    st.success("Added to cart!")
+                else:
+                    st.warning("Please login to add items to cart")
+
 
 def auth_page(session):
     st.title("Welcome to Smart Shopping")
