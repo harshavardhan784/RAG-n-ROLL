@@ -218,7 +218,7 @@ def save_to_temp_table(session, df: pd.DataFrame, table_name: str = "TEMP_TABLE"
         # Create the table if it does not exist
         columns = ", ".join([f'"{col}" STRING' for col in df.columns])  # Assuming STRING as default data type
         st.write(table_name)
-        create_query = f"CREATE OR REPLACE TABLE {table_name} ({columns})"
+        create_query = f"CREATE TABLE {table_name} ({columns})"
         session.sql(create_query).collect()
         print(f"Temporary table {table_name} created successfully.")
         
@@ -694,7 +694,7 @@ def get_recommendations(session, human_query, user_id):
     print("perform_semantic_search\n")
     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
 
-    filter_augment_table(session, mistral_query, user_id)
+    return filter_augment_table(session, mistral_query, user_id)
 
     try:
         # Query to fetch data from the specified table
