@@ -884,48 +884,47 @@ def log_interaction(session, user_id, product_id, interaction_type):
             st.error(f"Error logging interaction: {str(e)}")
 
 from datetime import datetime
+from datetime import datetime
+import streamlit as st
 
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interaction with products using parameterized queries"""
-    from datetime import datetime
-    current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')  # Match TIMESTAMP_NTZ precision
+    current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
     
     try:
-        # Correct SQL query with placeholders for parameters
+        # Correct SQL query with proper parameter placeholders for Snowflake
         sql_query = """
             INSERT INTO USER_INTERACTION_TABLE 
             (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-            VALUES (%s, %s, %s, %s)
+            VALUES (:1, :2, :3, :4)
         """
         
-        # Execute query with parameters safely
-        session.collect(sql_query, (user_id, product_id, interaction_type, current_timestamp))
+        # Execute query with parameters
+        session.execute(sql_query, (user_id, product_id, interaction_type, current_timestamp))
         
-        # Commit the transaction if needed
+        # Commit the transaction
         session.commit()
-
-        st.success("Interaction logged successfully!")
+        
+        return True
     except Exception as e:
         st.error(f"Error logging interaction: {str(e)}")
-
+        return False
 
 def handle_product_interaction(session, user_id, product_id, interaction_type):
-    """Handle product interactions without causing page refresh issues"""
+    """Handle product interactions with proper error handling and session management"""
     
-    # Ensure session state for interactions exists
     if 'interactions' not in st.session_state:
         st.session_state.interactions = {}
     
     interaction_key = f"{interaction_type}_{product_id}_{user_id}"
     
-    # Only log the interaction if it's not already logged (prevents repeated actions on refresh)
     if interaction_key not in st.session_state.interactions:
-        log_interaction(session, user_id, product_id, interaction_type)
-        st.session_state.interactions[interaction_key] = True
+        success = log_interaction(session, user_id, product_id, interaction_type)
+        if success:
+            st.session_state.interactions[interaction_key] = True
+            return True
     
-    # 🔴 Prevent entire script re-running by using `st.rerun()`
-    st.rerun()  
-
+    return False
 
 def display_product_card(product, column, session):
     """Display product card with interaction buttons"""
@@ -949,14 +948,15 @@ def display_product_card(product, column, session):
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("❤️ Like", key=like_key):
-                    st.toast("Product Liked!")
-                    handle_product_interaction(session, st.session_state.user_id, product_id, "like")
+                    
+                    if handle_product_interaction(session, st.session_state.user_id, product_id, "like"):
+                        st.toast("Product Liked!")
                     
 
                 if st.button("🛒 Add to Cart", key=cart_key):
-                    st.toast("Added to Cart!")
-                    handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart")
                     
+                    if handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart"):
+                        st.toast("Added to Cart!")
 
             with col2:
                 if st.button("👁️ View Details", key=view_key):
@@ -966,8 +966,9 @@ def display_product_card(product, column, session):
                     st.rerun()  # Ensures only necessary rerun happens
 
                 if st.button("💰 Purchase", key=buy_key):
-                    st.toast("Purchase Successful!")
-                    handle_product_interaction(session, st.session_state.user_id, product_id, "purchase")
+                    
+                    if handle_product_interaction(session, st.session_state.user_id, product_id, "purchase"):
+                        st.toast("Purchase Successful!")
                     
 
 # 🔴 Fix navigation to details page
@@ -1017,21 +1018,23 @@ def display_product_details(product, session):
             
             with col1:
                 if st.button("❤️ Like", key=f"detail_like_{product_id}"):
-                    st.toast("Product Liked!")
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'like')
+                    
+                    if handle_product_interaction(session, st.session_state.user_id, product_id, 'like'):
+                        st.toast("Product Liked!")
                     
 
             with col2:
                 if st.button("🛒 Add to Cart", key=f"detail_cart_{product_id}"):
-                    st.toast("Added to Cart!")
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'add_to_cart')
+                    
+                    if handle_product_interaction(session, st.session_state.user_id, product_id, 'add_to_cart'):
+                        st.toast("Added to Cart!")
                     
                     
             with col3:
                 if st.button("💰 Purchase", key=f"detail_buy_{product_id}"):
-                    st.toast("Purchase Successful!")
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'purchase')
                     
+                    if handle_product_interaction(session, st.session_state.user_id, product_id, 'purchase'):
+                        st.toast("Purchase Successful!")
             
             # Show success messages if interaction occurred
             for interaction_type in ['like', 'cart', 'buy']:
