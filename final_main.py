@@ -823,7 +823,7 @@ def register_user(session, username, email, password):
         session.sql(f"""
             INSERT INTO USER_TABLE (USER_ID, USERNAME, EMAIL, PASSWORD_HASH)
             VALUES ({new_user_id}, '{username}', '{email}', '{password_hash}')
-        """).execute()
+        """).collect()
         
         return new_user_id  # Return the assigned USER_ID
         
