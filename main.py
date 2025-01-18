@@ -29,16 +29,26 @@ import os
 # We can also use Snowpark for our analyses!
 # from snowflake.snowpark.context import get_active_session
 
+# SNOWFLAKE_CONFIG = {
+#     "account": "xyb99777",
+#     "user": "TESTING",
+#     "password": "Harsha123",
+#     "warehouse": "ECOMMERCE_WH",
+#     "database": "ECOMMERCE_DB",
+#     "schema": "PUBLIC"
+# }
+
 SNOWFLAKE_CONFIG = {
-    "account": "xyb99777",
-    "user": "TESTING",
-    "password": "Harsha123",
+    "account": "TLB97748",
+    "user": "HARSHAVARDHANGOVIND",
+    "password": "Harsha_456",
     "warehouse": "ECOMMERCE_WH",
     "database": "ECOMMERCE_DB",
     "schema": "PUBLIC"
 }
 
 session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
+
 
 def get_mistral_query(session, user_query):
     """
@@ -1204,7 +1214,7 @@ def main():
         if search_button and search_query:
             with st.spinner('Finding the perfect products for you...'):
                 try:
-                    suggestions_df = fetch_recommendations(session, search_query, 1)
+                    suggestions_df = TLB97748(session, search_query, 1)
                     
                     # Display results in the container
                     with results_container:
