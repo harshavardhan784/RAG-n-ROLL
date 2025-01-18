@@ -772,7 +772,7 @@ def init_session_state():
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     if 'user_id' not in st.session_state:
-        st.session_state.user_id = None
+        st.session_state.user_id = 0
     if 'cart_items' not in st.session_state:
         st.session_state.cart_items = []
     if 'current_product' not in st.session_state:
@@ -793,7 +793,7 @@ def login_user(session, username, password):
         WHERE USERNAME = '{username}' 
         AND PASSWORD_HASH = '{password_hash}'
     """).collect()
-    
+    # st.session_state.user_id = result[]
     return result[0]['USER_ID'] if result else None
 
 def register_user(session, username, email, password):
@@ -905,10 +905,13 @@ def auth_page(session):
                     st.session_state.user_id = user_id
                     st.session_state.page = 'home'
                     st.rerun()
+                    return user_id
                 else:
                     st.error("Invalid credentials")
+                    
             else:
                 st.warning("Please fill in all fields")
+        
     
     with tab2:
         st.header("Sign Up")
@@ -930,13 +933,16 @@ def auth_page(session):
             else:
                 st.warning("Please fill in all fields")
 
+    return 0
+
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
     # session = get_active_session()  # You'll need to implement this
     init_session_state()
     
+    user_id = 0
     if not st.session_state.logged_in:
-        auth_page(session)
+        user_id = auth_page(session)
         return
     
     # Header with logout
@@ -958,7 +964,7 @@ def main():
         if st.button("Search"):
             with st.spinner('Searching...'):
                 try:
-                    results_df = fetch_recommendations(session, search_query, 1)
+                    results_df = fetch_recommendations(session, search_query, user_id)
                     if not results_df.empty:
                         for i in range(0, len(results_df), 2):
                             cols = st.columns(2)
