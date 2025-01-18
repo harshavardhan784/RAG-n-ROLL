@@ -892,14 +892,13 @@ def log_interaction(session, user_id, product_id, interaction_type):
     current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
     
     try:
-        # Correct SQL query with proper parameter placeholders for Snowflake
-        query = """
-            INSERT INTO USER_INTERACTION_TABLE 
+        query = f"""
+            INSERT INTO ECOMMERCE_DB.PUBLIC.USER_INTERACTION_TABLE 
             (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-            VALUES (:1, :2, :3, :4)
+            VALUES 
+            ({user_id}, {product_id}, '{interaction_type}', '{current_timestamp}')
         """
-
-        session.sql(query).collect((user_id, product_id, interaction_type, current_timestamp))
+        session.sql(query).collect()
         
         return True
     except Exception as e:
