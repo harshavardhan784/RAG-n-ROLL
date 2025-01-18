@@ -176,7 +176,7 @@ def construct_context(session, user_id):
         session.sql(create_query).collect()
 
         # Step 2: Fetch the updated context table
-        results = session.sql("SELECT * FROM {context_table}").to_pandas()
+        results = session.sql(f"SELECT * FROM {context_table}").to_pandas()
 
         # Step 3: Convert the DataFrame to JSON
         context = results.to_json(orient="records", lines=False)
