@@ -716,6 +716,7 @@ def get_recommendations(session, human_query, user_id):
 def fetch_recommendations(_session, human_query, user_id):
     # Clear any existing tables before running new query
     # cleanup_tables(_session)
+
     return get_recommendations(_session, human_query, user_id)
 
 
@@ -907,7 +908,7 @@ def auth_page(session):
                     st.session_state.user_id = user_id
                     st.session_state.page = 'home'
                     st.rerun()
-                    return user_id
+                    
                 else:
                     st.error("Invalid credentials")
                     
@@ -944,9 +945,9 @@ def main():
     
     user_id = 0
     if not st.session_state.logged_in:
-        user_id = auth_page(session)
+        auth_page(session)
         return
-    st.write(user_id)
+    # st.write(user_id)
     # Header with logout
     col1, col2 = st.columns([6,1])
     with col1:
@@ -966,7 +967,7 @@ def main():
         if st.button("Search"):
             with st.spinner('Searching...'):
                 try:
-                    results_df = fetch_recommendations(session, search_query, user_id)
+                    results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
                     if not results_df.empty:
                         for i in range(0, len(results_df), 2):
                             cols = st.columns(2)
