@@ -792,8 +792,8 @@ def log_interaction(session, user_id, product_id, interaction_type):
                 VALUES (
                     {user_id},
                     {product_id},
-                    '{interaction_type}',
-                    '{current_timestamp}'
+                    {interaction_type},
+                    {current_timestamp}
                 )
             """).collect()
         except Exception as e:
@@ -803,7 +803,7 @@ def record_interaction(session, user_id, product_id, interaction_type):
     try:
         interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         session.sql(f"""
-            INSERT INTO USER_INTERACTIONS
+            INSERT INTO USER_INTERACTION_TABLE
             (INTERACTION_ID, USER_ID, PRODUCT_ID, INTERACTION_TYPE)
             VALUES (
                 '{interaction_id}',
@@ -974,7 +974,7 @@ def display_product_details(product, session):
             
             # Highlights
             st.markdown("### Highlights")
-            highlights = json.loads(product['HIGHLIGHTS']) if isinstance(product['HIGHLIGHTS'], str) else product['HIGHLIGHTS']
+            highlights = product['HIGHLIGHTS']
             if highlights:
                 for highlight in highlights:
                     st.write(f"• {highlight}")
