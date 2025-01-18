@@ -893,7 +893,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
 
             # Use parameterized query to insert data safely
             sql_query = f"""
-                INSERT INTO ECOMMERCE_DB.PUBLIC.USER_INTERACTION_TABLE 
+                INSERT INTO USER_INTERACTION_TABLE 
                 (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
                 VALUES ({user_id}, {product_id}, '{interaction_type}', '{current_timestamp}')
             """
