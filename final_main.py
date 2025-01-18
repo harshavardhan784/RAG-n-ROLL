@@ -632,6 +632,8 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
     except Exception as e:
         print(f"Error during semantic search: {str(e)}")
 
+
+
 def get_recommendations(session, human_query, user_id):
     
     human_query = human_query.replace('"', '').replace("'", "")
@@ -673,6 +675,12 @@ def get_recommendations(session, human_query, user_id):
         return pd.DataFrame()  # Return an empty DataFrame on error
 
 # df = get_recommendations(session, "I want to buy wedding costume for my marriage", 1)
+
+@st.cache_data(ttl=0)  # Set TTL to 0 to disable caching
+def fetch_recommendations(_session, human_query, user_id):
+    # Clear any existing tables before running new query
+    cleanup_tables(_session)
+    return get_recommendations(_session, human_query, user_id)
 
 
 def cleanup_tables(session):
