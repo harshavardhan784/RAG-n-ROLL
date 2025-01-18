@@ -660,55 +660,118 @@ def cleanup_on_logout(session, user_id):
         st.session_state.current_product = None
         st.session_state.page = 'auth'
 
-
 def get_recommendations(session, human_query, user_id):
-    
-    cleanup_user_tables(session, user_id)
-
-    human_query = human_query.replace('"', '').replace("'", "")
-
-    mistral_query = get_mistral_query(session, human_query)
-    mistral_query = mistral_query.replace('"', '').replace("'", "")
-
-    print(mistral_query)
-
-    temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
-    # context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
-    # augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
-    recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
-
-
-    
-    context = construct_context(session, user_id)
-    print(f"Constructed Context: {context}")
-
-    create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
-    session.sql(create_query).collect()
-
-
-    print("filter_temp_table\n")
-    filter_temp_table(session, mistral_query, user_id)
-
-    filter_context_table(session, mistral_query, user_id)
-    
-    print("perform_semantic_search\n")
-    perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
-
-    return filter_augment_table(session, mistral_query, user_id)
-
     try:
-        # Query to fetch data from the specified table
-        query = f"SELECT * FROM {recommendations_table};"
+        print(f"\nStarting recommendation process for user {user_id}")
+        print(f"Original query: {human_query}")
         
-        # Execute the query and convert the result to a pandas DataFrame
-        df = session.sql(query).to_pandas()
+        cleanup_user_tables(session, user_id)
+
+        human_query = human_query.replace('"', '').replace("'", "")
+        print(f"Cleaned query: {human_query}")
+
+        mistral_query = get_mistral_query(session, human_query)
+        mistral_query = mistral_query.replace('"', '').replace("'", "")
+        print(f"Mistral query: {mistral_query}")
+
+        temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
+        recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
         
-        print("Data successfully fetched from table RECOMMENDATIONS_TABLE.")
-        print(df.head())  # Display the first few rows of the DataFrame
-        return df
+        # Check if context exists
+        context = construct_context(session, user_id)
+        print(f"Context constructed. Length: {len(context) if context else 0}")
+
+        # Create temp table and verify
+        create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
+        session.sql(create_query).collect()
+        verify_count = session.sql(f"SELECT COUNT(*) as count FROM {temp_table}").collect()
+        print(f"Temp table created with {verify_count[0]['COUNT']} records")
+
+        # Filter temp table
+        print("\nFiltering temp table...")
+        temp_results = filter_temp_table(session, mistral_query, user_id)
+        print(f"Temp table filtered. Results shape: {temp_results.shape if temp_results is not None else 'None'}")
+
+        print("\nFiltering context table...")
+        context_results = filter_context_table(session, mistral_query, user_id)
+        print(f"Context table filtered. Results shape: {context_results.shape if context_results is not None else 'None'}")
+        
+        print("\nPerforming semantic search...")
+        perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
+
+        print("\nFiltering augment table...")
+        augment_results = filter_augment_table(session, mistral_query, user_id)
+        print(f"Augment table filtered. Results shape: {augment_results.shape if augment_results is not None else 'None'}")
+
+        # Final verification
+        try:
+            query = f"SELECT COUNT(*) as count FROM {recommendations_table};"
+            final_count = session.sql(query).collect()
+            print(f"\nFinal recommendations table count: {final_count[0]['COUNT']}")
+            
+            if final_count[0]['COUNT'] > 0:
+                recommendations = session.sql(f"SELECT * FROM {recommendations_table};").to_pandas()
+                print(f"Successfully retrieved {len(recommendations)} recommendations")
+                return recommendations
+            else:
+                print("No recommendations found in final table")
+                return pd.DataFrame()
+        except Exception as e:
+            print(f"Error in final retrieval: {str(e)}")
+            return pd.DataFrame()
+
     except Exception as e:
-        print(f"Error fetching data from table RECOMMENDATIONS_TABLE': {str(e)}")
-        return pd.DataFrame()  # Return an empty DataFrame on error
+        print(f"Error in get_recommendations: {str(e)}")
+        return pd.DataFrame()
+
+# def get_recommendations(session, human_query, user_id):
+    
+#     cleanup_user_tables(session, user_id)
+
+#     human_query = human_query.replace('"', '').replace("'", "")
+
+#     mistral_query = get_mistral_query(session, human_query)
+#     mistral_query = mistral_query.replace('"', '').replace("'", "")
+
+#     print(mistral_query)
+
+#     temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
+#     # context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
+#     # augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
+#     recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
+
+
+    
+#     context = construct_context(session, user_id)
+#     print(f"Constructed Context: {context}")
+
+#     create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
+#     session.sql(create_query).collect()
+
+
+#     print("filter_temp_table\n")
+#     filter_temp_table(session, mistral_query, user_id)
+
+#     filter_context_table(session, mistral_query, user_id)
+    
+#     print("perform_semantic_search\n")
+#     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
+
+#     return filter_augment_table(session, mistral_query, user_id)
+
+#     try:
+#         # Query to fetch data from the specified table
+#         query = f"SELECT * FROM {recommendations_table};"
+        
+#         # Execute the query and convert the result to a pandas DataFrame
+#         df = session.sql(query).to_pandas()
+        
+#         print("Data successfully fetched from table RECOMMENDATIONS_TABLE.")
+#         print(df.head())  # Display the first few rows of the DataFrame
+#         return df
+#     except Exception as e:
+#         print(f"Error fetching data from table RECOMMENDATIONS_TABLE': {str(e)}")
+#         return pd.DataFrame()  # Return an empty DataFrame on error
 
 # df = get_recommendations(session, "I want to buy wedding costume for my marriage", 1)
 
@@ -900,6 +963,115 @@ def display_product_card(product, column, session, key_prefix):
                 else:
                     st.warning("Please login to add items to cart")
 
+def display_product_details(product, session):
+    """Display detailed product information with enhanced image zoom"""
+    st.markdown("---")
+    
+    # Back button with unique key
+    if st.button("← Back to Search Results", key="back_to_search"):
+        st.session_state.page = 'home'
+        st.session_state.current_product = None
+        # st.rerun()
+    
+    # Product title
+    st.title(product['TITLE'])
+    
+    # Main product section
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("""
+            <style>
+                .zoom-container {
+                    width: 200px;
+                    height: 200px;
+                    overflow: hidden;
+                    margin: 20px auto;
+                    position: relative;
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .zoom-image {
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                    transition: transform 0.3s ease;
+                }
+                .zoom-image:hover {
+                    transform: scale(1.5);
+                    cursor: zoom-in;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
+        try:
+            st.image(product['IMAGE_LINKS'], width=200, output_format="auto", 
+                    classes=['zoom-image'])
+        except:
+            st.image("https://via.placeholder.com/200", width=200)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("### Product Details")
+        
+        st.markdown("""
+            <style>
+                .info-box {
+                    background-color: #f0f2f6;
+                    padding: 20px;
+                    border-radius: 10px;
+                    margin: 10px 0;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="info-box">', unsafe_allow_html=True)
+        st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
+        
+        # Convert prices to integer
+        mrp = int(float(product['MRP'])) if product['MRP'] else 0
+        # selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
+        
+        # st.write(f"**MRP:** ₹{mrp:,}")
+        # st.write(f"**Selling Price:** ₹{selling_price:,}")
+        
+        # if mrp > 0:
+        #     discount = ((mrp - selling_price) / mrp * 100)
+        #     st.write(f"**Discount:** {discount:.1f}%")
+        
+        st.write("**Seller Information:**")
+        st.write(f"Name: {product['SELLER_NAME']}")
+        st.write(f"Rating: ⭐{product['SELLER_RATING']}/5")
+        st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Action buttons with unique keys
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
+                if product['PRODUCT_ID'] not in st.session_state.cart_items:
+                    st.session_state.cart_items.append(product['PRODUCT_ID'])
+                    if st.session_state.user_id:
+                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                    st.success('Added to cart!')
+        
+        with col2:
+            if st.button('Buy Now', key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
+                if st.session_state.user_id:
+                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchased')
+                st.success('Order placed successfully!')
+        
+        with col3:
+            if st.button('❤️ Like', key=f"detail_like_{product['PRODUCT_ID']}", use_container_width=True):
+                if st.session_state.user_id:
+                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
+                st.success('Product liked!')
+
+
 
 def auth_page(session):
     st.title("Welcome to Smart Shopping")
@@ -976,10 +1148,28 @@ def main():
         st.markdown("## 🔍 Product Search")
         search_query = st.text_input("", placeholder="Search for products...")
         
+        # if st.button("Search"):
+        #     with st.spinner('Searching...'):
+        #         try:
+        #             results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
+        #             if not results_df.empty:
+        #                 for i in range(0, len(results_df), 2):
+        #                     cols = st.columns(2)
+        #                     if i < len(results_df):
+        #                         display_product_card(results_df.iloc[i], cols[0], session, i)
+        #                     if i + 1 < len(results_df):
+        #                         display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
+        #             else:
+        #                 st.info("No products found.")
+        #         except Exception as e:
+        #             st.error(f"Search error: {str(e)}")
+
         if st.button("Search"):
             with st.spinner('Searching...'):
                 try:
+                    st.write("Debug logs:")
                     results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
+                    st.write(f"Results DataFrame shape: {results_df.shape if results_df is not None else 'None'}")
                     if not results_df.empty:
                         for i in range(0, len(results_df), 2):
                             cols = st.columns(2)
@@ -989,6 +1179,7 @@ def main():
                                 display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
                     else:
                         st.info("No products found.")
+                        st.write("Check the debug logs above to see where the process failed")
                 except Exception as e:
                     st.error(f"Search error: {str(e)}")
     
