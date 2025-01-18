@@ -1089,7 +1089,10 @@ def main():
         if st.button("Search"):
             with st.spinner('Searching...'):
                 try:
-                    results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
+                    count = 1
+                    while not results_df.empty and count<3:
+                        results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
+                        count += 1
                     if not results_df.empty:
                         for i in range(0, len(results_df), 2):
                             cols = st.columns(2)
@@ -1098,6 +1101,7 @@ def main():
                             if i + 1 < len(results_df):
                                 display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
                     else:
+
                         st.info("No products found.")
                 except Exception as e:
                     st.error(f"Search error: {str(e)}")
