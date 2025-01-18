@@ -215,6 +215,7 @@ def save_to_temp_table(session, df: pd.DataFrame, table_name: str = "TEMP_TABLE"
     try:
         # Create the table if it does not exist
         columns = ", ".join([f'"{col}" STRING' for col in df.columns])  # Assuming STRING as default data type
+        st.write(table_name)
         create_query = f"CREATE OR REPLACE TABLE {table_name} ({columns})"
         session.sql(create_query).collect()
         print(f"Temporary table {table_name} created successfully.")
@@ -703,7 +704,7 @@ def fetch_recommendations(_session, human_query, user_id):
 
 def get_user_specific_table_name(base_name, user_id):
     """Generate user-specific table names to prevent conflicts"""
-    return f"{base_name}_USER_{user_id}"
+    return f"{base_name}_{user_id}"
 
 def cleanup_user_tables(session, user_id):
     """Clean up temporary tables for a specific user"""
