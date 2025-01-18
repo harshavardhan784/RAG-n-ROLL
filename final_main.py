@@ -520,58 +520,50 @@ def filter_augment_table(session, user_query, user_id):
         print(f"Error in filter_temp_table: {str(e)}")
         return pd.DataFrame()
 
+def get_user_specific_table_name(base_name, user_id):
+    """Generate user-specific table names to prevent conflicts"""
+    return f"{base_name}_{user_id}"
 
 def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
-    """
-    Performs semantic search and retrieves the top results for a given user.
-    
-    Args:
-        session: The Snowflake session/connection object.
-        user_id: The user ID for context filtering (if applicable).
-        rank: The number of top results to retrieve (default is 100).
-        threshold: The similarity threshold for filtering results (default is 0.5).
-
-    Returns:
-        A DataFrame containing the top results.
-    """
+    """Modified to use user-specific table names"""
     try:
+        staging_table = get_user_specific_table_name("PRODUCT_TABLE_STAGE", user_id)
+        temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
+        context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
+        augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
+        
         # Step 1: Create a staging table for the product data
-        session.sql("""
-            CREATE OR REPLACE TABLE product_table_stage AS 
+        session.sql(f"""
+            CREATE OR REPLACE TABLE {staging_table} AS 
             SELECT * 
-            FROM temp_table;
+            FROM {temp_table};
         """).collect()
-    
-        print("here1")
+        
         # Step 2: Add query embedding vectors for each row in the staging table
-        session.sql("""
-            ALTER TABLE product_table_stage ADD COLUMN IF NOT EXISTS product_vec VECTOR(FLOAT, 768);
+        session.sql(f"""
+            ALTER TABLE {staging_table} ADD COLUMN IF NOT EXISTS product_vec VECTOR(FLOAT, 768);
         """).collect()
-    
-        print("here2")
+        
         # Step 3: Generate embedding vectors for each query in the staging table
-        session.sql("""
-            UPDATE product_table_stage
+        session.sql(f"""
+            UPDATE {staging_table}
             SET product_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768('snowflake-arctic-embed-m', TITLE);
         """).collect()
-    
-        print("here3")
+        
         # Step 4: Add query embedding vectors for each row in the context table
-        session.sql("""
-            ALTER TABLE context_table ADD COLUMN IF NOT EXISTS context_vec VECTOR(FLOAT, 768);
+        session.sql(f"""
+            ALTER TABLE {context_table} ADD COLUMN IF NOT EXISTS context_vec VECTOR(FLOAT, 768);
         """).collect()
-        print("here4")
-    
+        
         # Step 5: Generate embedding vectors for each query in the context table
-        session.sql("""
-            UPDATE context_table
+        session.sql(f"""
+            UPDATE {context_table}
             SET context_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768('snowflake-arctic-embed-m', TITLE);
         """).collect()
-    
-        print("here5")
-        # Step 6: Perform semantic search and combine results
+        
+        # Step 6: Perform semantic search with user-specific tables
         session.sql(f"""
-            CREATE OR REPLACE TABLE augment_table AS
+            CREATE OR REPLACE TABLE {augment_table} AS
             WITH cross_product AS (
                 SELECT 
                     p.CATEGORY_1,
@@ -588,8 +580,8 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.TITLE,
                     p.product_vec,
                     VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
-                FROM context_table c
-                CROSS JOIN product_table_stage p
+                FROM {context_table} c
+                CROSS JOIN {staging_table} p
             ),
             ranked_results AS (
                 SELECT
@@ -625,7 +617,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     SELLER_RATING,
                     TITLE,
                     NULL as similarity
-                FROM product_table_stage
+                FROM {staging_table}
                 LIMIT 100
             )
             SELECT *
@@ -633,15 +625,37 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 SELECT * FROM ranked_results
                 UNION ALL
                 SELECT * FROM default_results
-                WHERE NOT EXISTS (SELECT 1 FROM context_table)
+                WHERE NOT EXISTS (SELECT 1 FROM {context_table})
             ) final_results
             ORDER BY similarity DESC NULLS LAST
             LIMIT 100;
         """).collect()
-        print("Step 6: Results successfully stored in augment_table.")
+        
     except Exception as e:
         print(f"Error during semantic search: {str(e)}")
 
+# Modified cache decorator to be session-specific
+@st.cache_data(ttl=0, show_spinner=False)
+def fetch_recommendations(_session, human_query, user_id):
+    """Cache recommendations per user session"""
+    try:
+        # Clean up any existing user-specific tables before running new query
+        cleanup_user_tables(_session, user_id)
+        return get_recommendations(_session, human_query, user_id)
+    finally:
+        # Ensure cleanup happens even if there's an error
+        cleanup_user_tables(_session, user_id)
+
+def cleanup_on_logout(session, user_id):
+    """Clean up all user-specific resources on logout"""
+    cleanup_user_tables(session, user_id)
+    # Clear session state
+    if st.session_state.get('logged_in'):
+        st.session_state.logged_in = False
+        st.session_state.user_id = None
+        st.session_state.cart_items = []
+        st.session_state.current_product = None
+        st.session_state.page = 'auth'
 
 
 def get_recommendations(session, human_query, user_id):
@@ -658,7 +672,7 @@ def get_recommendations(session, human_query, user_id):
     temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
     # context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
     # augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
-    # recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
+    recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
 
 
     
@@ -681,7 +695,7 @@ def get_recommendations(session, human_query, user_id):
 
     try:
         # Query to fetch data from the specified table
-        query = "SELECT * FROM RECOMMENDATIONS_TABLE;"
+        query = "SELECT * FROM recommendations_table;"
         
         # Execute the query and convert the result to a pandas DataFrame
         df = session.sql(query).to_pandas()
