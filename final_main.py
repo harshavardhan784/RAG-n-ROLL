@@ -963,7 +963,7 @@ def auth_page(session):
 
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
-    session = get_active_session()  # You'll need to implement this function
+    # session = get_active_session()  # You'll need to implement this function
     init_session_state()
     
     if not st.session_state.logged_in:
