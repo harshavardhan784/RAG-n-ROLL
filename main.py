@@ -1214,7 +1214,7 @@ def main():
         if search_button and search_query:
             with st.spinner('Finding the perfect products for you...'):
                 try:
-                    suggestions_df = TLB97748(session, search_query, 1)
+                    suggestions_df = fetch_recommendations(session, search_query, 1)
                     
                     # Display results in the container
                     with results_container:
