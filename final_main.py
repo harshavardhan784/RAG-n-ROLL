@@ -900,6 +900,7 @@ def auth_page(session):
         if st.button("Login"):
             if username and password:
                 user_id = login_user(session, username, password)
+                st.write(user_id)
                 if user_id:
                     st.session_state.logged_in = True
                     st.session_state.user_id = user_id
@@ -944,7 +945,7 @@ def main():
     if not st.session_state.logged_in:
         user_id = auth_page(session)
         return
-    
+    st.write(user_id)
     # Header with logout
     col1, col2 = st.columns([6,1])
     with col1:
