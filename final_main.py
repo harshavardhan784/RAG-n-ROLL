@@ -823,7 +823,7 @@ def register_user(session, username, email, password):
         session.sql(f"""
             INSERT INTO USER_TABLE (USER_ID, USERNAME, EMAIL, PASSWORD_HASH)
             VALUES ({new_user_id}, '{username}', '{email}', '{password_hash}')
-        """).collect()
+        """).execute()
         
         return new_user_id  # Return the assigned USER_ID
         
@@ -855,7 +855,7 @@ def display_product_card(product, column, session, key_prefix):
     with column:
         st.image(product['IMAGE_LINKS'], use_column_width=True)
         st.markdown(f"**{product['TITLE']}**")
-        st.write(f"Price: ${product['SELLING_PRICE']:.2f}")
+        # st.write(f"Price: ${product['SELLING_PRICE']:.2f}")
         st.write(f"Rating: {product['PRODUCT_RATING']}⭐")
        
         col1, col2 = st.columns(2)
