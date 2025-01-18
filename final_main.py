@@ -636,80 +636,80 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
     except Exception as e:
         print(f"Error during semantic search: {str(e)}")
 
-# Modified cache decorator to be session-specific
-@st.cache_data(ttl=0, show_spinner=False)
-def fetch_recommendations(_session, human_query, user_id):
-    """Cache recommendations per user session"""
-    try:
-        # Clean up any existing user-specific tables before running new query
-        st.write(user_id)
-        cleanup_user_tables(_session, user_id)
-        return get_recommendations(_session, human_query, user_id)
-    finally:
-        # Ensure cleanup happens even if there's an error
-        cleanup_user_tables(_session, user_id)
-
-def cleanup_on_logout(session, user_id):
-    """Clean up all user-specific resources on logout"""
-    cleanup_user_tables(session, user_id)
-    # Clear session state
-    if st.session_state.get('logged_in'):
-        st.session_state.logged_in = False
-        st.session_state.user_id = None
-        st.session_state.cart_items = []
-        st.session_state.current_product = None
-        st.session_state.page = 'auth'
-
-# def get_recommendations(s
-
-# def get_recommendations(session, human_query, user_id):
-    
-#     cleanup_user_tables(session, user_id)
-
-#     human_query = human_query.replace('"', '').replace("'", "")
-
-#     mistral_query = get_mistral_query(session, human_query)
-#     mistral_query = mistral_query.replace('"', '').replace("'", "")
-
-#     print(mistral_query)
-
-#     temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
-#     # context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
-#     # augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
-#     recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
-
-
-    
-#     context = construct_context(session, user_id)
-#     print(f"Constructed Context: {context}")
-
-#     create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
-#     session.sql(create_query).collect()
-
-
-#     print("filter_temp_table\n")
-#     filter_temp_table(session, mistral_query, user_id)
-
-#     filter_context_table(session, mistral_query, user_id)
-    
-#     print("perform_semantic_search\n")
-#     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
-
-#     return filter_augment_table(session, mistral_query, user_id)
-
+# # Modified cache decorator to be session-specific
+# @st.cache_data(ttl=0, show_spinner=False)
+# def fetch_recommendations(_session, human_query, user_id):
+#     """Cache recommendations per user session"""
 #     try:
-#         # Query to fetch data from the specified table
-#         query = f"SELECT * FROM {recommendations_table};"
+#         # Clean up any existing user-specific tables before running new query
+#         st.write(user_id)
+#         cleanup_user_tables(_session, user_id)
+#         return get_recommendations(_session, human_query, user_id)
+#     finally:
+#         # Ensure cleanup happens even if there's an error
+#         cleanup_user_tables(_session, user_id)
+
+# def cleanup_on_logout(session, user_id):
+#     """Clean up all user-specific resources on logout"""
+#     cleanup_user_tables(session, user_id)
+#     # Clear session state
+#     if st.session_state.get('logged_in'):
+#         st.session_state.logged_in = False
+#         st.session_state.user_id = None
+#         st.session_state.cart_items = []
+#         st.session_state.current_product = None
+#         st.session_state.page = 'auth'
+    
+
+
+def get_recommendations(session, human_query, user_id):
+    
+    # cleanup_user_tables(session, user_id)
+
+    human_query = human_query.replace('"', '').replace("'", "")
+
+    mistral_query = get_mistral_query(session, human_query)
+    mistral_query = mistral_query.replace('"', '').replace("'", "")
+
+    print(mistral_query)
+
+    temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
+    # context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
+    # augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
+    recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
+
+
+    
+    context = construct_context(session, user_id)
+    print(f"Constructed Context: {context}")
+
+    create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
+    session.sql(create_query).collect()
+
+
+    print("filter_temp_table\n")
+    filter_temp_table(session, mistral_query, user_id)
+
+    filter_context_table(session, mistral_query, user_id)
+    
+    print("perform_semantic_search\n")
+    perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
+
+    return filter_augment_table(session, mistral_query, user_id)
+
+    try:
+        # Query to fetch data from the specified table
+        query = f"SELECT * FROM {recommendations_table};"
         
-#         # Execute the query and convert the result to a pandas DataFrame
-#         df = session.sql(query).to_pandas()
+        # Execute the query and convert the result to a pandas DataFrame
+        df = session.sql(query).to_pandas()
         
-#         print("Data successfully fetched from table RECOMMENDATIONS_TABLE.")
-#         print(df.head())  # Display the first few rows of the DataFrame
-#         return df
-#     except Exception as e:
-#         print(f"Error fetching data from table RECOMMENDATIONS_TABLE': {str(e)}")
-#         return pd.DataFrame()  # Return an empty DataFrame on error
+        print("Data successfully fetched from table RECOMMENDATIONS_TABLE.")
+        print(df.head())  # Display the first few rows of the DataFrame
+        return df
+    except Exception as e:
+        print(f"Error fetching data from table RECOMMENDATIONS_TABLE': {str(e)}")
+        return pd.DataFrame()  # Return an empty DataFrame on error
 
 # df = get_recommendations(session, "I want to buy wedding costume for my marriage", 1)
 
@@ -724,106 +724,23 @@ def fetch_recommendations(_session, human_query, user_id):
 def get_user_specific_table_name(base_name, user_id):
     """Generate user-specific table names to prevent conflicts"""
     return f"{base_name}_{user_id}"
-def cleanup_user_tables(session, user_id):
-    """Clean up temporary tables for a specific user with verification"""
-    user_specific_tables = [
-        get_user_specific_table_name("AUGMENT_TABLE", user_id),
-        get_user_specific_table_name("CONTEXT_TABLE", user_id),
-        get_user_specific_table_name("PRODUCT_TABLE_STAGE", user_id),
-        get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id),
-        get_user_specific_table_name("TEMP_TABLE", user_id)
-    ]
+
+# def cleanup_user_tables(session, user_id):
+#     """Clean up temporary tables for a specific user"""
+#     user_specific_tables = [
+#         get_user_specific_table_name("AUGMENT_TABLE", user_id),
+#         get_user_specific_table_name("CONTEXT_TABLE", user_id),
+#         get_user_specific_table_name("PRODUCT_TABLE_STAGE", user_id),
+#         get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id),
+#         get_user_specific_table_name("TEMP_TABLE", user_id)
+#     ]
     
-    for table_name in user_specific_tables:
-        try:
-            # Drop the table
-            session.sql(f"DROP TABLE IF EXISTS {table_name}").collect()
-            
-            # Verify the table is dropped by trying to query it
-            try:
-                session.sql(f"SELECT 1 FROM {table_name} LIMIT 1").collect()
-                print(f"Warning: Table {table_name} still exists after drop attempt")
-            except:
-                print(f"Successfully cleaned up table {table_name}")
-                
-        except Exception as e:
-            print(f"Error cleaning up table {table_name}: {str(e)}")
-    
-    # Add a small delay to ensure cleanup is complete
-    import time
-    time.sleep(2)
+#     for table_name in user_specific_tables:
+#         try:
+#             session.sql(f"DROP TABLE IF EXISTS {table_name}").collect()
+#         except Exception as e:
+#             print(f"Error cleaning up table {table_name}: {str(e)}")
 
-def get_recommendations(session, human_query, user_id):
-    """Get recommendations with improved table handling"""
-    try:
-        print(f"\nStarting recommendation process for user {user_id}")
-        
-        # First ensure cleanup is complete
-        cleanup_user_tables(session, user_id)
-        
-        # Create all necessary tables upfront
-        temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
-        recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
-        context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
-        
-        # Create temp table and verify
-        create_query = f"""
-        CREATE OR REPLACE TABLE {temp_table} AS 
-        SELECT * FROM PRODUCT_TABLE;
-        """
-        session.sql(create_query).collect()
-        
-        # Verify table creation
-        max_retries = 3
-        retry_count = 0
-        while retry_count < max_retries:
-            try:
-                count = session.sql(f"SELECT COUNT(*) as count FROM {temp_table}").collect()
-                if count[0]['COUNT'] > 0:
-                    print(f"Temp table created successfully with {count[0]['COUNT']} records")
-                    break
-                else:
-                    print("Temp table created but empty, retrying...")
-                    time.sleep(2)
-                    retry_count += 1
-            except Exception as e:
-                print(f"Error verifying temp table, attempt {retry_count + 1}: {str(e)}")
-                time.sleep(2)
-                retry_count += 1
-        
-        if retry_count == max_retries:
-            raise Exception("Failed to create and verify temp table after maximum retries")
-
-        # Continue with the rest of the recommendation process
-        mistral_query = get_mistral_query(session, human_query.replace('"', '').replace("'", ""))
-        context = construct_context(session, user_id)
-        
-        # Process with retries for each major step
-        def retry_operation(operation, max_retries=3):
-            for i in range(max_retries):
-                try:
-                    result = operation()
-                    if result is not None and not (isinstance(result, pd.DataFrame) and result.empty):
-                        return result
-                    time.sleep(2)
-                except Exception as e:
-                    print(f"Retry {i+1} failed: {str(e)}")
-                    if i == max_retries - 1:
-                        raise
-                    time.sleep(2)
-            return None
-
-        # Execute each step with retry logic
-        temp_results = retry_operation(lambda: filter_temp_table(session, mistral_query, user_id))
-        context_results = retry_operation(lambda: filter_context_table(session, mistral_query, user_id))
-        retry_operation(lambda: perform_semantic_search(session, user_id, rank=1000, threshold=0.0))
-        final_results = retry_operation(lambda: filter_augment_table(session, mistral_query, user_id))
-
-        return final_results if final_results is not None else pd.DataFrame()
-
-    except Exception as e:
-        print(f"Error in get_recommendations: {str(e)}")
-        return pd.DataFrame()
 
 
 def header_section():
@@ -1169,24 +1086,8 @@ def main():
         st.markdown("## 🔍 Product Search")
         search_query = st.text_input("", placeholder="Search for products...")
         
-        # if st.button("Search"):
-        #     with st.spinner('Searching...'):
-        #         try:
-        #             results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
-        #             if not results_df.empty:
-        #                 for i in range(0, len(results_df), 2):
-        #                     cols = st.columns(2)
-        #                     if i < len(results_df):
-        #                         display_product_card(results_df.iloc[i], cols[0], session, i)
-        #                     if i + 1 < len(results_df):
-        #                         display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
-        #             else:
-        #                 st.info("No products found.")
-        #         except Exception as e:
-        #             st.error(f"Search error: {str(e)}")
-
         if st.button("Search"):
-            with st.spinner('Searching... Please wait for results. First search may take longer.'):
+            with st.spinner('Searching...'):
                 try:
                     results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
                     if not results_df.empty:
@@ -1197,28 +1098,9 @@ def main():
                             if i + 1 < len(results_df):
                                 display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
                     else:
-                        st.info("No products found. Please try your search again if this is unexpected.")
+                        st.info("No products found.")
                 except Exception as e:
-                    st.error(f"Search error: {str(e)}. Please try again.")
-
-        # if st.button("Search"):
-        #     with st.spinner('Searching...'):
-        #         try:
-        #             st.write("Debug logs:")
-        #             results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
-        #             st.write(f"Results DataFrame shape: {results_df.shape if results_df is not None else 'None'}")
-        #             if not results_df.empty:
-        #                 for i in range(0, len(results_df), 2):
-        #                     cols = st.columns(2)
-        #                     if i < len(results_df):
-        #                         display_product_card(results_df.iloc[i], cols[0], session, i)
-        #                     if i + 1 < len(results_df):
-        #                         display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
-        #             else:
-        #                 st.info("No products found.")
-        #                 st.write("Check the debug logs above to see where the process failed")
-        #         except Exception as e:
-        #             st.error(f"Search error: {str(e)}")
+                    st.error(f"Search error: {str(e)}")
     
     elif st.session_state.page == 'detail' and st.session_state.current_product:
         display_product_details(st.session_state.current_product, session)
