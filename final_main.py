@@ -839,8 +839,8 @@ def display_product_card(product, col, session, idx):
             st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
             
             # Convert selling price to integer
-            selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
-            st.write(f"💰 Price: ₹{selling_price:,}")
+            # selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
+            # st.write(f"💰 Price: ₹{selling_price:,}")
             
             # Action buttons using unique keys
             cols = st.columns(3)
@@ -945,14 +945,14 @@ def display_product_details(product, session):
         
         # Convert prices to integer
         mrp = int(float(product['MRP'])) if product['MRP'] else 0
-        selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
+        # selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
         
         st.write(f"**MRP:** ₹{mrp:,}")
-        st.write(f"**Selling Price:** ₹{selling_price:,}")
+        # st.write(f"**Selling Price:** ₹{selling_price:,}")
         
-        if mrp > 0:
-            discount = ((mrp - selling_price) / mrp * 100)
-            st.write(f"**Discount:** {discount:.1f}%")
+        # if mrp > 0:
+        #     discount = ((mrp - selling_price) / mrp * 100)
+        #     st.write(f"**Discount:** {discount:.1f}%")
         
         st.write("**Seller Information:**")
         st.write(f"Name: {product['SELLER_NAME']}")
