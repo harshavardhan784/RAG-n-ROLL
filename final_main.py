@@ -184,57 +184,57 @@ def construct_context(session, user_id):
         raise Exception(f"Error constructing and updating context: {str(e)}")
 
 
-# def create_cortex_search_service(session, table_name):
-#     """
-#     Creates a Cortex Search Service on the TITLE column with specified attributes.
+def create_cortex_search_service(session, table_name):
+    """
+    Creates a Cortex Search Service on the TITLE column with specified attributes.
     
-#     Args:
-#         session: The Snowflake session/connection object.
+    Args:
+        session: The Snowflake session/connection object.
 
-#     Returns:
-#         None
-#     """
-#     session.sql(f"""
-#         CREATE OR REPLACE CORTEX SEARCH SERVICE product_search_service
-#         ON TITLE
-#         ATTRIBUTES CATEGORY_1, CATEGORY_2, CATEGORY_3,HIGHLIGHTS, MRP
-#         WAREHOUSE = ECOMMERCE_wh
-#         TARGET_LAG = '1 day'
-#         EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
-#         AS (
-#             SELECT
-#                 *
-#             FROM {table_name}
-#         );
-#     """).collect()
+    Returns:
+        None
+    """
+    session.sql(f"""
+        CREATE OR REPLACE CORTEX SEARCH SERVICE product_search_service
+        ON TITLE
+        ATTRIBUTES CATEGORY_1, CATEGORY_2, CATEGORY_3,HIGHLIGHTS, MRP
+        WAREHOUSE = ECOMMERCE_wh
+        TARGET_LAG = '1 day'
+        EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
+        AS (
+            SELECT
+                *
+            FROM {table_name}
+        );
+    """).collect()
     
-# def save_to_temp_table(session, df: pd.DataFrame, table_name: str = "TEMP_TABLE") -> bool:
-#     """
-#     Save DataFrame to a temporary table in Snowflake. Create the table if it does not exist.
-#     """
-#     try:
-#         # Create the table if it does not exist
-#         columns = ", ".join([f'"{col}" STRING' for col in df.columns])  # Assuming STRING as default data type
-#         create_query = f"CREATE OR REPLACE TABLE {table_name} ({columns})"
-#         session.sql(create_query).collect()
-#         print(f"Temporary table {table_name} created successfully.")
+def save_to_temp_table(session, df: pd.DataFrame, table_name: str = "TEMP_TABLE") -> bool:
+    """
+    Save DataFrame to a temporary table in Snowflake. Create the table if it does not exist.
+    """
+    try:
+        # Create the table if it does not exist
+        columns = ", ".join([f'"{col}" STRING' for col in df.columns])  # Assuming STRING as default data type
+        create_query = f"CREATE OR REPLACE TABLE {table_name} ({columns})"
+        session.sql(create_query).collect()
+        print(f"Temporary table {table_name} created successfully.")
         
-#         # Replace NaN values with None
-#         for column in df.columns:
-#             df[column] = df[column].where(pd.notna(df[column]), None)
+        # Replace NaN values with None
+        for column in df.columns:
+            df[column] = df[column].where(pd.notna(df[column]), None)
         
-#         # Overwrite existing table data
-#         session.write_pandas(
-#             df,
-#             table_name,
-#             overwrite=True,
-#             quote_identifiers=False
-#         )
-#         print(f"Results successfully saved to temporary table {table_name}")
-#         return True
-#     except Exception as e:
-#         print(f"Error saving to temporary table: {str(e)}")
-#         return False
+        # Overwrite existing table data
+        session.write_pandas(
+            df,
+            table_name,
+            overwrite=True,
+            quote_identifiers=False
+        )
+        print(f"Results successfully saved to temporary table {table_name}")
+        return True
+    except Exception as e:
+        print(f"Error saving to temporary table: {str(e)}")
+        return False
 
 
 def process_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -276,16 +276,17 @@ def build_search_query(search_json: str) -> str:
     ) as SEARCH_RESULTS;
     """
 
-def filter_temp_table(session, user_query):
+def filter_temp_table(session, user_query, user_id):
     """
     Main function to process search query, create search configuration, and filter results.
     """
     try:
+        table = get_user_specific_table_name("TEMP_TABLE", user_id)
         # Clean the query if necessary (here, it's just a placeholder)
         cleaned_query = user_query
 
         # Create the Cortex Search Service (ensure it is created beforehand)
-        create_cortex_search_service(session, "TEMP_TABLE")
+        create_cortex_search_service(session, table)
 
         # Create search configuration
         search_config = create_search_config(cleaned_query)
@@ -354,7 +355,7 @@ def filter_temp_table(session, user_query):
         return pd.DataFrame()
 
 
-def filter_context_table(session, user_query):
+def filter_context_table(session, user_query, user_id):
     """
     Main function to process search query and filter results.
     """
@@ -362,8 +363,10 @@ def filter_context_table(session, user_query):
         # Clean the query if necessary (here, it's just a placeholder)
         cleaned_query = user_query
 
+        table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
+
         # Create the Cortex Search Service (ensure it is created beforehand)
-        create_cortex_search_service(session, "CONTEXT_TABLE")
+        create_cortex_search_service(session, table)
 
         # Create search configuration
         search_config = create_search_config(cleaned_query)
@@ -431,16 +434,18 @@ def filter_context_table(session, user_query):
         print(f"Error in filter_temp_table: {str(e)}")
         return pd.DataFrame()
 
-def filter_augment_table(session, user_query):
+def filter_augment_table(session, user_query, user_id):
     """
     Main function to process search query and filter results.
     """
     try:
         # Clean the query if necessary (here, it's just a placeholder)
         cleaned_query = user_query
+        
+        table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
 
         # Create the Cortex Search Service (ensure it is created beforehand)
-        create_cortex_search_service(session, "AUGMENT_TABLE")
+        create_cortex_search_service(session, table)
 
         # Create search configuration
         search_config = create_search_config(cleaned_query)
@@ -632,6 +637,66 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
     except Exception as e:
         print(f"Error during semantic search: {str(e)}")
 
+
+
+def get_recommendations(session, human_query, user_id):
+    
+    cleanup_user_tables(session, user_id)
+
+    human_query = human_query.replace('"', '').replace("'", "")
+
+    mistral_query = get_mistral_query(session, human_query)
+    mistral_query = mistral_query.replace('"', '').replace("'", "")
+
+    print(mistral_query)
+
+    temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
+    # context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
+    # augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
+    # recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
+
+
+    
+    context = construct_context(session, user_id)
+    print(f"Constructed Context: {context}")
+
+    create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
+    session.sql(create_query).collect()
+
+
+    print("filter_temp_table\n")
+    filter_temp_table(session, mistral_query, user_id)
+
+    filter_context_table(session, mistral_query, user_id)
+    
+    print("perform_semantic_search\n")
+    perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
+
+    filter_augment_table(session, mistral_query, user_id)
+
+    try:
+        # Query to fetch data from the specified table
+        query = "SELECT * FROM RECOMMENDATIONS_TABLE;"
+        
+        # Execute the query and convert the result to a pandas DataFrame
+        df = session.sql(query).to_pandas()
+        
+        print("Data successfully fetched from table RECOMMENDATIONS_TABLE.")
+        print(df.head())  # Display the first few rows of the DataFrame
+        return df
+    except Exception as e:
+        print(f"Error fetching data from table RECOMMENDATIONS_TABLE': {str(e)}")
+        return pd.DataFrame()  # Return an empty DataFrame on error
+
+# df = get_recommendations(session, "I want to buy wedding costume for my marriage", 1)
+
+@st.cache_data(ttl=0)  # Set TTL to 0 to disable caching
+def fetch_recommendations(_session, human_query, user_id):
+    # Clear any existing tables before running new query
+    # cleanup_tables(_session)
+    return get_recommendations(_session, human_query, user_id)
+
+
 def get_user_specific_table_name(base_name, user_id):
     """Generate user-specific table names to prevent conflicts"""
     return f"{base_name}_USER_{user_id}"
@@ -652,205 +717,7 @@ def cleanup_user_tables(session, user_id):
         except Exception as e:
             print(f"Error cleaning up table {table_name}: {str(e)}")
 
-def create_cortex_search_service(session, table_name, user_id):
-    """Creates a user-specific Cortex Search Service"""
-    service_name = f"product_search_service_user_{user_id}"
-    session.sql(f"""
-        CREATE OR REPLACE CORTEX SEARCH SERVICE {service_name}
-        ON TITLE
-        ATTRIBUTES CATEGORY_1, CATEGORY_2, CATEGORY_3, HIGHLIGHTS, MRP
-        WAREHOUSE = ECOMMERCE_wh
-        TARGET_LAG = '1 day'
-        EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
-        AS (
-            SELECT *
-            FROM {table_name}
-        );
-    """).collect()
-    return service_name
 
-def save_to_temp_table(session, df: pd.DataFrame, base_table_name: str, user_id: int) -> bool:
-    """Save DataFrame to a user-specific temporary table"""
-    table_name = get_user_specific_table_name(base_table_name, user_id)
-    try:
-        columns = ", ".join([f'"{col}" STRING' for col in df.columns])
-        create_query = f"CREATE OR REPLACE TABLE {table_name} ({columns})"
-        session.sql(create_query).collect()
-        
-        for column in df.columns:
-            df[column] = df[column].where(pd.notna(df[column]), None)
-        
-        session.write_pandas(
-            df,
-            table_name,
-            overwrite=True,
-            quote_identifiers=False
-        )
-        return True
-    except Exception as e:
-        print(f"Error saving to temporary table: {str(e)}")
-        return False
-
-def get_recommendations(session, human_query, user_id):
-    # Clean up existing user-specific tables
-    cleanup_user_tables(session, user_id)
-    
-    try:
-        human_query = human_query.replace('"', '').replace("'", "")
-        mistral_query = get_mistral_query(session, human_query)
-        mistral_query = mistral_query.replace('"', '').replace("'", "")
-
-        # Create user-specific temporary tables
-        temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
-        context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
-        augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
-        recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
-
-        # Create initial temporary table
-        create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
-        session.sql(create_query).collect()
-
-        # Create user-specific search service
-        service_name = create_cortex_search_service(session, temp_table, user_id)
-
-        # Modify the filter functions to use user-specific tables
-        filter_temp_table(session, mistral_query, user_id)
-        filter_context_table(session, mistral_query, user_id)
-        perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
-        filter_augment_table(session, mistral_query, user_id)
-
-        # Fetch results from user-specific recommendations table
-        query = f"SELECT * FROM {recommendations_table};"
-        df = session.sql(query).to_pandas()
-        
-        return df
-    except Exception as e:
-        print(f"Error in get_recommendations: {str(e)}")
-        return pd.DataFrame()
-
-@st.cache_data(ttl=0)
-def fetch_recommendations(_session, human_query, user_id):
-    return get_recommendations(_session, human_query, user_id)
-
-# def get_recommendations(session, human_query, user_id):
-    
-#     human_query = human_query.replace('"', '').replace("'", "")
-
-#     mistral_query = get_mistral_query(session, human_query)
-#     mistral_query = mistral_query.replace('"', '').replace("'", "")
-
-#     print(mistral_query)
-    
-#     context = construct_context(session, user_id)
-#     print(f"Constructed Context: {context}")
-
-#     create_query = f"CREATE OR REPLACE TABLE TEMP_TABLE AS (SELECT * FROM PRODUCT_TABLE)"
-#     session.sql(create_query).collect()
-
-
-#     print("filter_temp_table\n")
-#     filter_temp_table(session, mistral_query)
-
-#     filter_context_table(session, mistral_query)
-    
-#     print("perform_semantic_search\n")
-#     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
-
-#     filter_augment_table(session, mistral_query)
-
-#     try:
-#         # Query to fetch data from the specified table
-#         query = "SELECT * FROM RECOMMENDATIONS_TABLE;"
-        
-#         # Execute the query and convert the result to a pandas DataFrame
-#         df = session.sql(query).to_pandas()
-        
-#         print("Data successfully fetched from table RECOMMENDATIONS_TABLE.")
-#         print(df.head())  # Display the first few rows of the DataFrame
-#         return df
-#     except Exception as e:
-#         print(f"Error fetching data from table RECOMMENDATIONS_TABLE': {str(e)}")
-#         return pd.DataFrame()  # Return an empty DataFrame on error
-
-# # df = get_recommendations(session, "I want to buy wedding costume for my marriage", 1)
-
-# @st.cache_data(ttl=0)  # Set TTL to 0 to disable caching
-# def fetch_recommendations(_session, human_query, user_id):
-#     # Clear any existing tables before running new query
-#     cleanup_tables(_session)
-#     return get_recommendations(_session, human_query, user_id)
-
-
-def cleanup_tables(session):
-    """Clean up temporary tables before running new recommendations"""
-    cleanup_queries = [
-        "DROP TABLE IF EXISTS AUGMENT_TABLE;",
-        "DROP TABLE IF EXISTS CONTEXT_TABLE;",
-        "DROP TABLE IF EXISTS PRODUCT_TABLE_STAGE;",
-        "DROP TABLE IF EXISTS RECOMMENDATIONS_TABLE;",
-        "DROP TABLE IF EXISTS TEMP_TABLE;"
-    ]
-    
-    for query in cleanup_queries:
-        try:
-            session.sql(query).collect()
-        except Exception as e:
-            print(f"Error cleaning up table: {str(e)}")
-            
-# # Modified get_recommendations function
-# def get_recommendations(session, human_query, user_id):
-#     # Clean up any existing temporary tables first
-#     cleanup_tables(session)
-    
-#     try:
-#         human_query = human_query.replace('"', '').replace("'", "")
-        
-#         # Get Mistral query
-#         mistral_query = get_mistral_query(session, human_query)
-#         mistral_query = mistral_query.replace('"', '').replace("'", "")
-        
-#         print(f"Original query: {human_query}")
-#         print(f"Processed query: {mistral_query}")
-        
-#         # Create fresh temporary table
-#         create_query = """
-#         CREATE OR REPLACE TABLE TEMP_TABLE AS 
-#         SELECT * FROM PRODUCT_TABLE 
-#         WHERE 1=1 
-#         """
-#         session.sql(create_query).collect()
-        
-#         # Run the search pipeline
-#         filter_temp_table(session, mistral_query)
-        
-#         if user_id:
-#             # Get user context and filter
-#             context = construct_context(session, user_id)
-#             filter_context_table(session, mistral_query)
-            
-#             # Perform semantic search
-#             perform_semantic_search(session, user_id, rank=100, threshold=0.3)
-        
-#         # Get final recommendations
-#         final_df = filter_augment_table(session, mistral_query)
-        
-#         if final_df.empty:
-#             # Fallback to basic recommendations
-#             fallback_query = """
-#             SELECT * FROM PRODUCT_TABLE 
-#             WHERE PRODUCT_RATING > 3.0 
-#             ORDER BY RANDOM() 
-#             LIMIT 10
-#             """
-#             final_df = session.sql(fallback_query).to_pandas()
-        
-#         return final_df
-        
-    # except Exception as e:
-    #     print(f"Error in get_recommendations: {str(e)}")
-    #     # Return basic recommendations on error
-    #     basic_query = "SELECT * FROM PRODUCT_TABLE ORDER BY RANDOM() LIMIT 6"
-    #     return session.sql(basic_query).to_pandas()
 
 def header_section():
     """Create the header section of the application"""
