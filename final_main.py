@@ -802,7 +802,7 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def login_user(session, username, password):
-    password_hash = hash_password(password)
+    # password_hash = hash_password(password)
     result = session.sql(f"""
         SELECT USER_ID, USERNAME 
         FROM USER_TABLE 
@@ -814,7 +814,7 @@ def login_user(session, username, password):
 
 def register_user(session, username, email, password):
     try:
-        password_hash = hash_password(password)
+        # password_hash = hash_password(password)
         session.sql(f"""
             INSERT INTO USER_TABLE (USERNAME, EMAIL, PASSWORD_HASH)
             VALUES ('{username}', '{email}', '{password_hash}')
