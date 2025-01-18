@@ -642,6 +642,7 @@ def fetch_recommendations(_session, human_query, user_id):
     """Cache recommendations per user session"""
     try:
         # Clean up any existing user-specific tables before running new query
+        st.write(user_id)
         cleanup_user_tables(_session, user_id)
         return get_recommendations(_session, human_query, user_id)
     finally:
@@ -953,7 +954,7 @@ def main():
     with col2:
         if st.button("Logout"):
             st.session_state.logged_in = False
-            st.session_state.user_id = None
+            # st.session_state.user_id = None
             st.session_state.page = 'auth'
             st.rerun()
     
