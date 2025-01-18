@@ -1034,6 +1034,7 @@ def main():
                 try:
                     suggestions_df = fetch_recommendations(session, search_query, 1)
                     st.session_state.search_performed = True
+                    st.write(suggestions_df)
                     
                     # Display results in the container
                     with results_container:
