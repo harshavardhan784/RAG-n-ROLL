@@ -975,9 +975,7 @@ def display_product_details(product, session):
             # Highlights
             st.markdown("### Highlights")
             highlights = product['HIGHLIGHTS']
-            if highlights:
-                for highlight in highlights:
-                    st.write(f"• {highlight}")
+            st.write(highlights)
                     
             # Description
             st.markdown("### Description")
@@ -990,14 +988,17 @@ def display_product_details(product, session):
             with col1:
                 if st.button("❤️ Like", key=f"detail_like_{product_id}"):
                     handle_product_interaction(session, st.session_state.user_id, product_id, 'like')
-                    
+                    st.toast("Product Liked!")
+
             with col2:
                 if st.button("🛒 Add to Cart", key=f"detail_cart_{product_id}"):
                     handle_product_interaction(session, st.session_state.user_id, product_id, 'add_to_cart')
+                    st.toast("Added to Cart!")
                     
             with col3:
                 if st.button("💰 Purchase", key=f"detail_buy_{product_id}"):
                     handle_product_interaction(session, st.session_state.user_id, product_id, 'purchase')
+                    st.toast("Purchase Successful!")
             
             # Show success messages if interaction occurred
             for interaction_type in ['like', 'cart', 'buy']:
