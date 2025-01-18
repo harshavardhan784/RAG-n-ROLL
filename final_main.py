@@ -781,24 +781,6 @@ def register_user(session, username, email, password):
     except Exception as e:
         return str(e)
 
-def log_interaction(session, user_id, product_id, interaction_type):
-    """Log user interaction with products according to the actual table schema"""
-    if user_id:
-        try:
-            current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            session.sql(f"""
-                INSERT INTO USER_INTERACTION_TABLE 
-                (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-                VALUES (
-                    {user_id},
-                    {product_id},
-                    {interaction_type},
-                    {current_timestamp}
-                )
-            """).collect()
-        except Exception as e:
-            st.error(f"Error logging interaction: {str(e)}")
-
 def record_interaction(session, user_id, product_id, interaction_type):
     try:
         interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -883,6 +865,54 @@ def get_random_products(session, limit=8):
     """
     return session.sql(query).to_pandas()
 
+def log_interaction(session, user_id, product_id, interaction_type):
+    """Log user interaction with products according to the actual table schema"""
+    if user_id:
+        try:
+            current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            session.sql(f"""
+                INSERT INTO USER_INTERACTION_TABLE 
+                (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
+                VALUES (
+                    {user_id},
+                    {product_id},
+                    {interaction_type},
+                    {current_timestamp}
+                )
+            """).collect()
+        except Exception as e:
+            st.error(f"Error logging interaction: {str(e)}")
+
+from datetime import datetime
+
+def log_interaction(session, user_id, product_id, interaction_type):
+    """Log user interaction with products using parameterized queries"""
+    if user_id:
+        try:
+            current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')  # Match TIMESTAMP_NTZ precision
+
+            # Use parameterized query to insert data safely
+            sql_query = f"""
+                INSERT INTO ECOMMERCE_DB.PUBLIC.USER_INTERACTION_TABLE 
+                (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
+                VALUES ({user_id}, {product_id}, '{interaction_type}', '{current_timestamp}')
+            """
+
+
+            # Execute query with parameters
+            session.sql(sql_query, [user_id, product_id, interaction_type, current_timestamp]).collect()
+
+            # Ensure transaction commits
+            session.sql("COMMIT").collect()
+
+            st.success("Interaction logged successfully!")
+
+        except Exception as e:
+            st.error(f"Error logging interaction: {str(e)}")
+
+
+
+
 def handle_product_interaction(session, user_id, product_id, interaction_type):
     """Handle product interactions without causing page refresh issues"""
     
@@ -894,6 +924,7 @@ def handle_product_interaction(session, user_id, product_id, interaction_type):
     
     # Only log the interaction if it's not already logged (prevents repeated actions on refresh)
     if interaction_key not in st.session_state.interactions:
+        st.write("here in handle")
         log_interaction(session, user_id, product_id, interaction_type)
         st.session_state.interactions[interaction_key] = True
     
