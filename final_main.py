@@ -155,11 +155,9 @@ def construct_context(session, user_id):
         str: A JSON string representation of the context table
     """
     try:
-
-        context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
         # Step 1: Create or replace the context table
         create_query = f"""
-            CREATE OR REPLACE TABLE {context_table} AS
+            CREATE OR REPLACE TABLE CONTEXT_TABLE AS
             SELECT 
                 p.*, 
                 u.USER_ID, 
@@ -176,7 +174,7 @@ def construct_context(session, user_id):
         session.sql(create_query).collect()
 
         # Step 2: Fetch the updated context table
-        results = session.sql(f"SELECT * FROM {context_table}").to_pandas()
+        results = session.sql("SELECT * FROM CONTEXT_TABLE").to_pandas()
 
         # Step 3: Convert the DataFrame to JSON
         context = results.to_json(orient="records", lines=False)
@@ -217,8 +215,7 @@ def save_to_temp_table(session, df: pd.DataFrame, table_name: str = "TEMP_TABLE"
     try:
         # Create the table if it does not exist
         columns = ", ".join([f'"{col}" STRING' for col in df.columns])  # Assuming STRING as default data type
-        st.write(table_name)
-        create_query = f"CREATE TABLE {table_name} ({columns})"
+        create_query = f"CREATE OR REPLACE TABLE {table_name} ({columns})"
         session.sql(create_query).collect()
         print(f"Temporary table {table_name} created successfully.")
         
@@ -279,17 +276,16 @@ def build_search_query(search_json: str) -> str:
     ) as SEARCH_RESULTS;
     """
 
-def filter_temp_table(session, user_query, user_id):
+def filter_temp_table(session, user_query):
     """
     Main function to process search query, create search configuration, and filter results.
     """
     try:
-        table = get_user_specific_table_name("TEMP_TABLE", user_id)
         # Clean the query if necessary (here, it's just a placeholder)
         cleaned_query = user_query
 
         # Create the Cortex Search Service (ensure it is created beforehand)
-        create_cortex_search_service(session, table)
+        create_cortex_search_service(session, "TEMP_TABLE")
 
         # Create search configuration
         search_config = create_search_config(cleaned_query)
@@ -346,9 +342,8 @@ def filter_temp_table(session, user_query, user_id):
         # Process numeric columns
         flattened_results = process_numeric_columns(flattened_results)
         
-        table = get_user_specific_table_name("TEMP_TABLE", user_id)
         # Save to temporary table
-        if save_to_temp_table(session, flattened_results, table):
+        if save_to_temp_table(session, flattened_results, "TEMP_TABLE"):
             return flattened_results
         else:
             print("Failed to save results to temporary table")
@@ -359,7 +354,7 @@ def filter_temp_table(session, user_query, user_id):
         return pd.DataFrame()
 
 
-def filter_context_table(session, user_query, user_id):
+def filter_context_table(session, user_query):
     """
     Main function to process search query and filter results.
     """
@@ -367,10 +362,8 @@ def filter_context_table(session, user_query, user_id):
         # Clean the query if necessary (here, it's just a placeholder)
         cleaned_query = user_query
 
-        table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
-
         # Create the Cortex Search Service (ensure it is created beforehand)
-        create_cortex_search_service(session, table)
+        create_cortex_search_service(session, "CONTEXT_TABLE")
 
         # Create search configuration
         search_config = create_search_config(cleaned_query)
@@ -427,9 +420,8 @@ def filter_context_table(session, user_query, user_id):
         # Process numeric columns
         flattened_results = process_numeric_columns(flattened_results)
         
-        table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
         # Save to temporary table
-        if save_to_temp_table(session, flattened_results, table):
+        if save_to_temp_table(session, flattened_results, "CONTEXT_TABLE"):
             return flattened_results
         else:
             print("Failed to save results to temporary table")
@@ -439,18 +431,16 @@ def filter_context_table(session, user_query, user_id):
         print(f"Error in filter_temp_table: {str(e)}")
         return pd.DataFrame()
 
-def filter_augment_table(session, user_query, user_id):
+def filter_augment_table(session, user_query):
     """
     Main function to process search query and filter results.
     """
     try:
         # Clean the query if necessary (here, it's just a placeholder)
         cleaned_query = user_query
-        
-        table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
 
         # Create the Cortex Search Service (ensure it is created beforehand)
-        create_cortex_search_service(session, table)
+        create_cortex_search_service(session, "AUGMENT_TABLE")
 
         # Create search configuration
         search_config = create_search_config(cleaned_query)
@@ -509,10 +499,8 @@ def filter_augment_table(session, user_query, user_id):
 
         print(flattened_results)
         
-        table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
-
         # Save to temporary table
-        if save_to_temp_table(session, flattened_results, table):
+        if save_to_temp_table(session, flattened_results, "RECOMMENDATIONS_TABLE"):
             return flattened_results
         else:
             print("Failed to save results to temporary table")
@@ -522,50 +510,58 @@ def filter_augment_table(session, user_query, user_id):
         print(f"Error in filter_temp_table: {str(e)}")
         return pd.DataFrame()
 
-def get_user_specific_table_name(base_name, user_id):
-    """Generate user-specific table names to prevent conflicts"""
-    return f"{base_name}_{user_id}"
 
 def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
-    """Modified to use user-specific table names"""
+    """
+    Performs semantic search and retrieves the top results for a given user.
+    
+    Args:
+        session: The Snowflake session/connection object.
+        user_id: The user ID for context filtering (if applicable).
+        rank: The number of top results to retrieve (default is 100).
+        threshold: The similarity threshold for filtering results (default is 0.5).
+
+    Returns:
+        A DataFrame containing the top results.
+    """
     try:
-        staging_table = get_user_specific_table_name("PRODUCT_TABLE_STAGE", user_id)
-        temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
-        context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
-        augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
-        
         # Step 1: Create a staging table for the product data
-        session.sql(f"""
-            CREATE OR REPLACE TABLE {staging_table} AS 
+        session.sql("""
+            CREATE OR REPLACE TABLE product_table_stage AS 
             SELECT * 
-            FROM {temp_table};
+            FROM temp_table;
         """).collect()
-        
+    
+        print("here1")
         # Step 2: Add query embedding vectors for each row in the staging table
-        session.sql(f"""
-            ALTER TABLE {staging_table} ADD COLUMN IF NOT EXISTS product_vec VECTOR(FLOAT, 768);
+        session.sql("""
+            ALTER TABLE product_table_stage ADD COLUMN IF NOT EXISTS product_vec VECTOR(FLOAT, 768);
         """).collect()
-        
+    
+        print("here2")
         # Step 3: Generate embedding vectors for each query in the staging table
-        session.sql(f"""
-            UPDATE {staging_table}
+        session.sql("""
+            UPDATE product_table_stage
             SET product_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768('snowflake-arctic-embed-m', TITLE);
         """).collect()
-        
+    
+        print("here3")
         # Step 4: Add query embedding vectors for each row in the context table
-        session.sql(f"""
-            ALTER TABLE {context_table} ADD COLUMN IF NOT EXISTS context_vec VECTOR(FLOAT, 768);
+        session.sql("""
+            ALTER TABLE context_table ADD COLUMN IF NOT EXISTS context_vec VECTOR(FLOAT, 768);
         """).collect()
-        
+        print("here4")
+    
         # Step 5: Generate embedding vectors for each query in the context table
-        session.sql(f"""
-            UPDATE {context_table}
+        session.sql("""
+            UPDATE context_table
             SET context_vec = SNOWFLAKE.CORTEX.EMBED_TEXT_768('snowflake-arctic-embed-m', TITLE);
         """).collect()
-        
-        # Step 6: Perform semantic search with user-specific tables
+    
+        print("here5")
+        # Step 6: Perform semantic search and combine results
         session.sql(f"""
-            CREATE OR REPLACE TABLE {augment_table} AS
+            CREATE OR REPLACE TABLE augment_table AS
             WITH cross_product AS (
                 SELECT 
                     p.CATEGORY_1,
@@ -582,8 +578,8 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.TITLE,
                     p.product_vec,
                     VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
-                FROM {context_table} c
-                CROSS JOIN {staging_table} p
+                FROM context_table c
+                CROSS JOIN product_table_stage p
             ),
             ranked_results AS (
                 SELECT
@@ -619,7 +615,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     SELLER_RATING,
                     TITLE,
                     NULL as similarity
-                FROM {staging_table}
+                FROM product_table_stage
                 LIMIT 100
             )
             SELECT *
@@ -627,79 +623,46 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 SELECT * FROM ranked_results
                 UNION ALL
                 SELECT * FROM default_results
-                WHERE NOT EXISTS (SELECT 1 FROM {context_table})
+                WHERE NOT EXISTS (SELECT 1 FROM context_table)
             ) final_results
             ORDER BY similarity DESC NULLS LAST
             LIMIT 100;
         """).collect()
-        
+        print("Step 6: Results successfully stored in augment_table.")
     except Exception as e:
         print(f"Error during semantic search: {str(e)}")
 
-# # Modified cache decorator to be session-specific
-# @st.cache_data(ttl=0, show_spinner=False)
-# def fetch_recommendations(_session, human_query, user_id):
-#     """Cache recommendations per user session"""
-#     try:
-#         # Clean up any existing user-specific tables before running new query
-#         st.write(user_id)
-#         cleanup_user_tables(_session, user_id)
-#         return get_recommendations(_session, human_query, user_id)
-#     finally:
-#         # Ensure cleanup happens even if there's an error
-#         cleanup_user_tables(_session, user_id)
-
-# def cleanup_on_logout(session, user_id):
-#     """Clean up all user-specific resources on logout"""
-#     cleanup_user_tables(session, user_id)
-#     # Clear session state
-#     if st.session_state.get('logged_in'):
-#         st.session_state.logged_in = False
-#         st.session_state.user_id = None
-#         st.session_state.cart_items = []
-#         st.session_state.current_product = None
-#         st.session_state.page = 'auth'
-    
 
 
 def get_recommendations(session, human_query, user_id):
     
-    # cleanup_user_tables(session, user_id)
-
     human_query = human_query.replace('"', '').replace("'", "")
 
     mistral_query = get_mistral_query(session, human_query)
     mistral_query = mistral_query.replace('"', '').replace("'", "")
 
     print(mistral_query)
-
-    temp_table = get_user_specific_table_name("TEMP_TABLE", user_id)
-    # context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
-    # augment_table = get_user_specific_table_name("AUGMENT_TABLE", user_id)
-    recommendations_table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
-
-
     
     context = construct_context(session, user_id)
     print(f"Constructed Context: {context}")
 
-    create_query = f"CREATE OR REPLACE TABLE {temp_table} AS (SELECT * FROM PRODUCT_TABLE)"
+    create_query = f"CREATE OR REPLACE TABLE TEMP_TABLE AS (SELECT * FROM PRODUCT_TABLE)"
     session.sql(create_query).collect()
 
 
     print("filter_temp_table\n")
-    filter_temp_table(session, mistral_query, user_id)
+    filter_temp_table(session, mistral_query)
 
-    filter_context_table(session, mistral_query, user_id)
+    filter_context_table(session, mistral_query)
     
     print("perform_semantic_search\n")
     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
 
-    return filter_augment_table(session, mistral_query, user_id)
+    filter_augment_table(session, mistral_query)
 
     try:
         # Query to fetch data from the specified table
-        query = f"SELECT * FROM {recommendations_table};"
+        query = "SELECT * FROM RECOMMENDATIONS_TABLE;"
         
         # Execute the query and convert the result to a pandas DataFrame
         df = session.sql(query).to_pandas()
@@ -716,32 +679,80 @@ def get_recommendations(session, human_query, user_id):
 @st.cache_data(ttl=0)  # Set TTL to 0 to disable caching
 def fetch_recommendations(_session, human_query, user_id):
     # Clear any existing tables before running new query
-    # cleanup_tables(_session)
-
+    cleanup_tables(_session)
     return get_recommendations(_session, human_query, user_id)
 
 
-def get_user_specific_table_name(base_name, user_id):
-    """Generate user-specific table names to prevent conflicts"""
-    return f"{base_name}_{user_id}"
-
-# def cleanup_user_tables(session, user_id):
-#     """Clean up temporary tables for a specific user"""
-#     user_specific_tables = [
-#         get_user_specific_table_name("AUGMENT_TABLE", user_id),
-#         get_user_specific_table_name("CONTEXT_TABLE", user_id),
-#         get_user_specific_table_name("PRODUCT_TABLE_STAGE", user_id),
-#         get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id),
-#         get_user_specific_table_name("TEMP_TABLE", user_id)
-#     ]
+def cleanup_tables(session):
+    """Clean up temporary tables before running new recommendations"""
+    cleanup_queries = [
+        "DROP TABLE IF EXISTS AUGMENT_TABLE;",
+        "DROP TABLE IF EXISTS CONTEXT_TABLE;",
+        "DROP TABLE IF EXISTS PRODUCT_TABLE_STAGE;",
+        "DROP TABLE IF EXISTS RECOMMENDATIONS_TABLE;",
+        "DROP TABLE IF EXISTS TEMP_TABLE;"
+    ]
     
-#     for table_name in user_specific_tables:
-#         try:
-#             session.sql(f"DROP TABLE IF EXISTS {table_name}").collect()
-#         except Exception as e:
-#             print(f"Error cleaning up table {table_name}: {str(e)}")
-
-
+    for query in cleanup_queries:
+        try:
+            session.sql(query).collect()
+        except Exception as e:
+            print(f"Error cleaning up table: {str(e)}")
+            
+# # Modified get_recommendations function
+# def get_recommendations(session, human_query, user_id):
+#     # Clean up any existing temporary tables first
+#     cleanup_tables(session)
+    
+#     try:
+#         human_query = human_query.replace('"', '').replace("'", "")
+        
+#         # Get Mistral query
+#         mistral_query = get_mistral_query(session, human_query)
+#         mistral_query = mistral_query.replace('"', '').replace("'", "")
+        
+#         print(f"Original query: {human_query}")
+#         print(f"Processed query: {mistral_query}")
+        
+#         # Create fresh temporary table
+#         create_query = """
+#         CREATE OR REPLACE TABLE TEMP_TABLE AS 
+#         SELECT * FROM PRODUCT_TABLE 
+#         WHERE 1=1 
+#         """
+#         session.sql(create_query).collect()
+        
+#         # Run the search pipeline
+#         filter_temp_table(session, mistral_query)
+        
+#         if user_id:
+#             # Get user context and filter
+#             context = construct_context(session, user_id)
+#             filter_context_table(session, mistral_query)
+            
+#             # Perform semantic search
+#             perform_semantic_search(session, user_id, rank=100, threshold=0.3)
+        
+#         # Get final recommendations
+#         final_df = filter_augment_table(session, mistral_query)
+        
+#         if final_df.empty:
+#             # Fallback to basic recommendations
+#             fallback_query = """
+#             SELECT * FROM PRODUCT_TABLE 
+#             WHERE PRODUCT_RATING > 3.0 
+#             ORDER BY RANDOM() 
+#             LIMIT 10
+#             """
+#             final_df = session.sql(fallback_query).to_pandas()
+        
+#         return final_df
+        
+    # except Exception as e:
+    #     print(f"Error in get_recommendations: {str(e)}")
+    #     # Return basic recommendations on error
+    #     basic_query = "SELECT * FROM PRODUCT_TABLE ORDER BY RANDOM() LIMIT 6"
+    #     return session.sql(basic_query).to_pandas()
 
 def header_section():
     """Create the header section of the application"""
@@ -775,7 +786,7 @@ def init_session_state():
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     if 'user_id' not in st.session_state:
-        st.session_state.user_id = 0
+        st.session_state.user_id = None
     if 'cart_items' not in st.session_state:
         st.session_state.cart_items = []
     if 'current_product' not in st.session_state:
@@ -796,7 +807,7 @@ def login_user(session, username, password):
         WHERE USERNAME = '{username}' 
         AND PASSWORD_HASH = '{password_hash}'
     """).collect()
-    # st.session_state.user_id = result[]
+    
     return result[0]['USER_ID'] if result else None
 
 def register_user(session, username, email, password):
@@ -813,24 +824,16 @@ def register_user(session, username, email, password):
         if existing_user[0]['COUNT'] > 0:
             return "Username or email already exists"
         
-        # Get the maximum current USER_ID
-        max_user_id = session.sql("""
-            SELECT COALESCE(MAX(USER_ID), 1000) AS max_id FROM USER_TABLE
-        """).collect()[0]['MAX_ID']
-        
-        new_user_id = max_user_id + 1  # Increment by 1
-
-        # Insert new user with explicit USER_ID
+        # Insert new user
         session.sql(f"""
-            INSERT INTO USER_TABLE (USER_ID, USERNAME, EMAIL, PASSWORD_HASH)
-            VALUES ({new_user_id}, '{username}', '{email}', '{password_hash}')
+            INSERT INTO USER_TABLE (USERNAME, EMAIL, PASSWORD_HASH)
+            VALUES ('{username}', '{email}', '{password_hash}')
         """).collect()
         
-        return new_user_id  # Return the assigned USER_ID
+        return True
         
     except Exception as e:
         return str(e)
-
 
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interaction with products according to the actual table schema"""
@@ -850,166 +853,128 @@ def log_interaction(session, user_id, product_id, interaction_type):
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
-def record_interaction(session, user_id, product_id, interaction_type):
-    try:
-        interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        session.sql(f"""
-            INSERT INTO USER_INTERACTIONS
-            (INTERACTION_ID, USER_ID, PRODUCT_ID, INTERACTION_TYPE)
-            VALUES (
-                '{interaction_id}',
-                {user_id},
-                '{product_id}',
-                '{interaction_type}'
-            )
-        """).collect()
-        return True
-    except Exception as e:
-        st.error(f"Error recording interaction: {str(e)}")
-        return False
-
-
 def display_product_card(product, column, session, key_prefix):
-    """Display product card with view details and add to cart functionality"""
+    """Display product card with improved styling and interaction logging"""
     with column:
-        st.image(product['IMAGE_LINKS'], use_column_width=True)
-        st.markdown(f"**{product['TITLE']}**")
-        # st.write(f"Price: ${product['SELLING_PRICE']:.2f}")
-        st.write(f"Rating: {product['PRODUCT_RATING']}⭐")
-       
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("View Details", key=f"{key_prefix}_view"):
-                if st.session_state.logged_in:
-                    # Record the view_details interaction
-                    record_interaction(session, st.session_state.user_id,
-                                    product['PRODUCT_ID'], 'view_details')
-                    # Store the current product in session state
+        with st.container():
+            st.markdown("""
+                <style>
+                    .product-card {
+                        border: 1px solid #ddd;
+                        padding: 10px;
+                        border-radius: 8px;
+                        margin-bottom: 15px;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
+            
+            st.markdown('<div class="product-card">', unsafe_allow_html=True)
+            
+            # Display product image
+            if product['IMAGE_LINKS']:
+                st.image(product['IMAGE_LINKS'], use_column_width=True)
+            else:
+                st.image("https://via.placeholder.com/200", use_column_width=True)
+            
+            # Product details
+            st.markdown(f"**{product['TITLE'][:50]}...**" if len(product['TITLE']) > 50 else f"**{product['TITLE']}**")
+            st.write(f"Price: ₹{float(product['MRP']):.2f}")
+            st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("View Details", key=f"{key_prefix}_view_{product['PRODUCT_ID']}"):
+                    # Log interaction
+                    session.sql(f"""
+                        INSERT INTO USER_INTERACTION_TABLE 
+                        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
+                        VALUES (
+                            {st.session_state.user_id},
+                            '{product['PRODUCT_ID']}',
+                            'view_details',
+                            CURRENT_TIMESTAMP()
+                        )
+                    """).collect()
+                    
                     st.session_state.current_product = product
-                    # Change page to detail view
                     st.session_state.page = 'detail'
                     st.rerun()
-                else:
-                    st.warning("Please login to view product details")
-       
-        with col2:
-            if st.button("Add to Cart", key=f"{key_prefix}_cart"):
-                if st.session_state.logged_in:
-                    record_interaction(session, st.session_state.user_id,
-                                    product['PRODUCT_ID'], 'add_to_cart')
+            
+            with col2:
+                if st.button("Add to Cart", key=f"{key_prefix}_cart_{product['PRODUCT_ID']}"):
+                    # Log interaction
+                    session.sql(f"""
+                        INSERT INTO USER_INTERACTION_TABLE 
+                        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
+                        VALUES (
+                            {st.session_state.user_id},
+                            '{product['PRODUCT_ID']}',
+                            'add_to_cart',
+                            CURRENT_TIMESTAMP()
+                        )
+                    """).collect()
                     st.success("Added to cart!")
-                else:
-                    st.warning("Please login to add items to cart")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
 
 def display_product_details(product, session):
-    """Display detailed product information with enhanced image zoom"""
+    """Display detailed product information with improved layout and interaction logging"""
     st.markdown("---")
     
-    # Back button with unique key
-    if st.button("← Back to Search Results", key="back_to_search"):
+    if st.button("← Back to Products", key="back_to_products"):
         st.session_state.page = 'home'
         st.session_state.current_product = None
-        # st.rerun()
+        st.rerun()
     
-    # Product title
     st.title(product['TITLE'])
     
-    # Main product section
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.markdown("""
-            <style>
-                .zoom-container {
-                    width: 200px;
-                    height: 200px;
-                    overflow: hidden;
-                    margin: 20px auto;
-                    position: relative;
-                    border: 1px solid #ddd;
-                    border-radius: 10px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .zoom-image {
-                    max-width: 100%;
-                    max-height: 100%;
-                    object-fit: contain;
-                    transition: transform 0.3s ease;
-                }
-                .zoom-image:hover {
-                    transform: scale(1.5);
-                    cursor: zoom-in;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
-        try:
-            st.image(product['IMAGE_LINKS'], width=200, output_format="auto", 
-                    classes=['zoom-image'])
-        except:
-            st.image("https://via.placeholder.com/200", width=200)
-        st.markdown('</div>', unsafe_allow_html=True)
+        if product['IMAGE_LINKS']:
+            st.image(product['IMAGE_LINKS'], width=400)
+        else:
+            st.image("https://via.placeholder.com/400", width=400)
     
     with col2:
-        st.markdown("### Product Details")
-        
-        st.markdown("""
-            <style>
-                .info-box {
-                    background-color: #f0f2f6;
-                    padding: 20px;
-                    border-radius: 10px;
-                    margin: 10px 0;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        st.markdown('<div class="info-box">', unsafe_allow_html=True)
+        st.markdown("### Product Information")
         st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
+        st.write(f"**Price:** ₹{float(product['MRP']):.2f}")
+        st.write(f"**Seller:** {product['SELLER_NAME']}")
+        st.write(f"**Seller Rating:** {float(product['SELLER_RATING'])}⭐")
+        st.write(f"**Product Rating:** {float(product['PRODUCT_RATING'])}⭐")
         
-        # Convert prices to integer
-        mrp = int(float(product['MRP'])) if product['MRP'] else 0
-        # selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
-        
-        # st.write(f"**MRP:** ₹{mrp:,}")
-        # st.write(f"**Selling Price:** ₹{selling_price:,}")
-        
-        # if mrp > 0:
-        #     discount = ((mrp - selling_price) / mrp * 100)
-        #     st.write(f"**Discount:** {discount:.1f}%")
-        
-        st.write("**Seller Information:**")
-        st.write(f"Name: {product['SELLER_NAME']}")
-        st.write(f"Rating: ⭐{product['SELLER_RATING']}/5")
-        st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Action buttons with unique keys
-        col1, col2, col3 = st.columns(3)
+        # Action buttons
+        col1, col2 = st.columns(2)
         with col1:
-            if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
-                if product['PRODUCT_ID'] not in st.session_state.cart_items:
-                    st.session_state.cart_items.append(product['PRODUCT_ID'])
-                    if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                    st.success('Added to cart!')
+            if st.button("Add to Cart", key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
+                # Log interaction
+                session.sql(f"""
+                    INSERT INTO USER_INTERACTION_TABLE 
+                    (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
+                    VALUES (
+                        {st.session_state.user_id},
+                        '{product['PRODUCT_ID']}',
+                        'add_to_cart',
+                        CURRENT_TIMESTAMP()
+                    )
+                """).collect()
+                st.success("Added to cart!")
         
         with col2:
-            if st.button('Buy Now', key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
-                if st.session_state.user_id:
-                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchased')
-                st.success('Order placed successfully!')
-        
-        with col3:
-            if st.button('❤️ Like', key=f"detail_like_{product['PRODUCT_ID']}", use_container_width=True):
-                if st.session_state.user_id:
-                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                st.success('Product liked!')
-
-
+            if st.button("Buy Now", key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
+                # Log interaction
+                session.sql(f"""
+                    INSERT INTO USER_INTERACTION_TABLE 
+                    (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
+                    VALUES (
+                        {st.session_state.user_id},
+                        '{product['PRODUCT_ID']}',
+                        'purchase',
+                        CURRENT_TIMESTAMP()
+                    )
+                """).collect()
+                st.success("Order placed successfully!")
 
 def auth_page(session):
     st.title("Welcome to Smart Shopping")
@@ -1024,19 +989,15 @@ def auth_page(session):
         if st.button("Login"):
             if username and password:
                 user_id = login_user(session, username, password)
-                st.write(user_id)
                 if user_id:
                     st.session_state.logged_in = True
                     st.session_state.user_id = user_id
                     st.session_state.page = 'home'
                     st.rerun()
-                    
                 else:
                     st.error("Invalid credentials")
-                    
             else:
                 st.warning("Please fill in all fields")
-        
     
     with tab2:
         st.header("Sign Up")
@@ -1058,18 +1019,15 @@ def auth_page(session):
             else:
                 st.warning("Please fill in all fields")
 
-    return 0
-
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
     # session = get_active_session()  # You'll need to implement this
     init_session_state()
     
-    user_id = 0
     if not st.session_state.logged_in:
         auth_page(session)
         return
-    # st.write(user_id)
+    
     # Header with logout
     col1, col2 = st.columns([6,1])
     with col1:
@@ -1077,7 +1035,7 @@ def main():
     with col2:
         if st.button("Logout"):
             st.session_state.logged_in = False
-            # st.session_state.user_id = None
+            st.session_state.user_id = None
             st.session_state.page = 'auth'
             st.rerun()
     
@@ -1089,12 +1047,7 @@ def main():
         if st.button("Search"):
             with st.spinner('Searching...'):
                 try:
-                    count = 1
-                    while count<3:
-                        results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
-                        if not results_df.empty:
-                            break
-                        count += 1
+                    results_df = fetch_recommendations(session, search_query, 1)
                     if not results_df.empty:
                         for i in range(0, len(results_df), 2):
                             cols = st.columns(2)
@@ -1103,7 +1056,6 @@ def main():
                             if i + 1 < len(results_df):
                                 display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
                     else:
-
                         st.info("No products found.")
                 except Exception as e:
                     st.error(f"Search error: {str(e)}")
