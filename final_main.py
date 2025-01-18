@@ -777,57 +777,74 @@ def header_section():
 # here
 
 import streamlit as st
-from datetime import datetime
 import pandas as pd
+from datetime import datetime
+import hashlib
+import json
 
-# Initialize session state variables
+# Initialize session states
 def init_session_state():
-    if 'page' not in st.session_state:
-        st.session_state.page = 'home'
-    if 'current_product' not in st.session_state:
-        st.session_state.current_product = None
-    if 'cart_items' not in st.session_state:
-        st.session_state.cart_items = []
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
     if 'user_id' not in st.session_state:
         st.session_state.user_id = None
+    if 'cart_items' not in st.session_state:
+        st.session_state.cart_items = []
+    if 'current_product' not in st.session_state:
+        st.session_state.current_product = None
+    if 'page' not in st.session_state:
+        st.session_state.page = 'home'
     if 'search_performed' not in st.session_state:
         st.session_state.search_performed = False
 
-def navigate_to_detail(product):
-    st.session_state.current_product = product
-    st.session_state.page = 'detail'
-    st.rerun()
+# Authentication functions
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
-def navigate_to_home():
-    st.session_state.page = 'home'
-    st.session_state.current_product = None
-    st.rerun()
+def login_user(session, username, password):
+    password_hash = hash_password(password)
+    result = session.sql(f"""
+        SELECT USER_ID, USERNAME 
+        FROM USER_TABLE 
+        WHERE USERNAME = '{username}' 
+        AND PASSWORD_HASH = '{password_hash}'
+    """).collect()
+    
+    return result[0]['USER_ID'] if result else None
 
-def log_interaction(session, user_id, product_id, interaction_type):
-    """Log user interactions with products"""
+def register_user(session, username, email, password):
     try:
-        # Format the timestamp correctly
-        interaction_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Use parameterized query to prevent SQL injection
-        query = """
-        INSERT INTO USER_INTERACTION_TABLE 
-        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) 
-        VALUES (?, ?, ?, ?)
-        """
-        
-        # Execute the query with parameters
-        session.sql(query).bind((user_id, product_id, interaction_type, interaction_timestamp)).collect()
-        print(f"Logged interaction: User {user_id}, Product {product_id}, Type {interaction_type}")
+        password_hash = hash_password(password)
+        session.sql(f"""
+            INSERT INTO USER_TABLE (USERNAME, EMAIL, PASSWORD_HASH)
+            VALUES ('{username}', '{email}', '{password_hash}')
+        """).collect()
         return True
-        
     except Exception as e:
-        print(f"Error logging interaction: {str(e)}")
-        st.error(f"Failed to log interaction: {str(e)}")
-        return False
+        if 'duplicate key value' in str(e):
+            return "Username or email already exists"
+        return str(e)
 
+# Interaction logging
+def log_interaction(session, user_id, product_id, interaction_type):
+    if user_id:
+        try:
+            interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            session.sql(f"""
+                INSERT INTO USER_INTERACTIONS 
+                (INTERACTION_ID, USER_ID, PRODUCT_ID, INTERACTION_TYPE)
+                VALUES (
+                    '{interaction_id}',
+                    {user_id},
+                    '{product_id}',
+                    '{interaction_type}'
+                )
+            """).collect()
+        except Exception as e:
+            st.error(f"Error logging interaction: {str(e)}")
+
+# UI Components
 def display_product_card(product, col, session, idx):
-    """Display a single product card with consistent image sizing"""
     with col:
         with st.container():
             st.markdown("""
@@ -837,285 +854,155 @@ def display_product_card(product, col, session, idx):
                         border: 1px solid #ddd;
                         border-radius: 10px;
                         margin: 10px 0;
-                        transition: transform 0.3s;
+                        background-color: white;
                     }
                     .product-card:hover {
                         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                        transform: translateY(-5px);
-                    }
-                    .product-image-container {
-                        width: 200px;
-                        height: 200px;
-                        overflow: hidden;
-                        margin: 0 auto;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    }
-                    .product-image {
-                        max-width: 100%;
-                        max-height: 100%;
-                        object-fit: contain;
                     }
                 </style>
             """, unsafe_allow_html=True)
             
             st.markdown('<div class="product-card">', unsafe_allow_html=True)
             
-            # Display product image with consistent sizing
-            st.markdown('<div class="product-image-container">', unsafe_allow_html=True)
             try:
-                st.image(product['IMAGE_LINKS'], width=200, output_format="auto")
+                st.image(product['IMAGE_LINKS'], use_column_width=True)
             except:
-                st.image("https://via.placeholder.com/200", width=200)
-            st.markdown('</div>', unsafe_allow_html=True)
+                st.write("Image not available")
             
-            # Display product information
             st.markdown(f"### {product['TITLE'][:50]}...")
-            st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
             
-            # Action buttons using unique keys
-            cols = st.columns(3)
-            
-            # View Details button
+            cols = st.columns(2)
             with cols[0]:
                 if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
+                    st.session_state.current_product = product
+                    st.session_state.page = 'detail'
                     if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
-                    navigate_to_detail(product)
-                    
-            # Add to Cart button
+                        log_interaction(session, st.session_state.user_id, 
+                                     product['PRODUCT_ID'], 'view')
+                    st.experimental_rerun()
+            
             with cols[1]:
                 if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         if st.session_state.user_id:
-                            log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                            log_interaction(session, st.session_state.user_id, 
+                                         product['PRODUCT_ID'], 'add_to_cart')
                         st.success('Added to cart!')
-            
-            # Like button
-            with cols[2]:
-                if st.button('❤️', key=f"like_{product['PRODUCT_ID']}_{idx}"):
-                    if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                    st.success('Product liked!')
             
             st.markdown('</div>', unsafe_allow_html=True)
 
 def display_product_details(product, session):
-    """Display detailed product information with enhanced image zoom"""
-    st.markdown("---")
+    st.button("← Back", on_click=lambda: setattr(st.session_state, 'page', 'home'))
     
-    # Back button with unique key
-    if st.button("← Back to Search Results", key="back_to_search"):
-        navigate_to_home()
-    
-    # Product title
-    st.title(product['TITLE'])
-    
-    # Main product section
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        st.markdown("""
-            <style>
-                .zoom-container {
-                    width: 200px;
-                    height: 200px;
-                    overflow: hidden;
-                    margin: 20px auto;
-                    position: relative;
-                    border: 1px solid #ddd;
-                    border-radius: 10px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .zoom-image {
-                    max-width: 100%;
-                    max-height: 100%;
-                    object-fit: contain;
-                    transition: transform 0.3s ease;
-                }
-                .zoom-image:hover {
-                    transform: scale(1.5);
-                    cursor: zoom-in;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        st.markdown('<div class="zoom-container">', unsafe_allow_html=True)
         try:
-            st.image(product['IMAGE_LINKS'], width=200, output_format="auto", 
-                    classes=['zoom-image'])
+            st.image(product['IMAGE_LINKS'], width=300)
         except:
-            st.image("https://via.placeholder.com/200", width=200)
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.write("Image not available")
     
     with col2:
-        st.markdown("### Product Details")
-        
-        st.markdown("""
-            <style>
-                .info-box {
-                    background-color: #f0f2f6;
-                    padding: 20px;
-                    border-radius: 10px;
-                    margin: 10px 0;
-                }
-            </style>
-        """, unsafe_allow_html=True)
-        
-        st.markdown('<div class="info-box">', unsafe_allow_html=True)
+        st.title(product['TITLE'])
         st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
+        st.write(f"**Seller:** {product['SELLER_NAME']} (Rating: ⭐{product['SELLER_RATING']}/5)")
         
-        # Convert prices to integer
-        mrp = int(float(product['MRP'])) if product['MRP'] else 0
+        if st.button('Add to Cart'):
+            if product['PRODUCT_ID'] not in st.session_state.cart_items:
+                st.session_state.cart_items.append(product['PRODUCT_ID'])
+                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
+                st.success('Added to cart!')
+    
+    st.markdown("### Description")
+    st.write(product['DESCRIPTION'])
+    
+    if product.get('HIGHLIGHTS'):
+        st.markdown("### Highlights")
+        try:
+            highlights = json.loads(product['HIGHLIGHTS'])
+            for highlight in highlights:
+                st.markdown(f"• {highlight}")
+        except:
+            st.write("No highlights available")
+
+def auth_page(session):
+    st.title("Welcome to Smart Shopping")
+    
+    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    
+    with tab1:
+        st.header("Login")
+        username = st.text_input("Username", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
         
-        st.write(f"**MRP:** ₹{mrp:,}")
+        if st.button("Login"):
+            if username and password:
+                user_id = login_user(session, username, password)
+                if user_id:
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = user_id
+                    st.session_state.page = 'home'
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials")
+    
+    with tab2:
+        st.header("Sign Up")
+        new_username = st.text_input("Username", key="new_username")
+        new_email = st.text_input("Email", key="new_email")
+        new_password = st.text_input("Password", type="password", key="new_password")
         
-        st.write("**Seller Information:**")
-        st.write(f"Name: {product['SELLER_NAME']}")
-        st.write(f"Rating: ⭐{product['SELLER_RATING']}/5")
-        st.write(f"**Product Rating:** ⭐{product['PRODUCT_RATING']}/5")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Action buttons with unique keys
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button('Add to Cart', key=f"detail_cart_{product['PRODUCT_ID']}", use_container_width=True):
-                if product['PRODUCT_ID'] not in st.session_state.cart_items:
-                    st.session_state.cart_items.append(product['PRODUCT_ID'])
-                    if st.session_state.user_id:
-                        log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                    st.success('Added to cart!')
-        
-        with col2:
-            if st.button('Buy Now', key=f"buy_{product['PRODUCT_ID']}", use_container_width=True):
-                if st.session_state.user_id:
-                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'purchased')
-                st.success('Order placed successfully!')
-        
-        with col3:
-            if st.button('❤️ Like', key=f"detail_like_{product['PRODUCT_ID']}", use_container_width=True):
-                if st.session_state.user_id:
-                    log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
-                st.success('Product liked!')
+        if st.button("Sign Up"):
+            if new_username and new_email and new_password:
+                result = register_user(session, new_username, new_email, new_password)
+                if result is True:
+                    st.success("Registration successful! Please login.")
+                else:
+                    st.error(result)
 
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
-    
-    # Initialize session state
+    session = get_active_session()  # You'll need to implement this function
     init_session_state()
     
-    # Display header section (you need to implement this)
-    header_section()
+    if not st.session_state.logged_in:
+        auth_page(session)
+        return
     
+    # Header with logout
+    col1, col2 = st.columns([6,1])
+    with col1:
+        st.title("Smart Shopping")
+    with col2:
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.session_state.user_id = None
+            st.session_state.page = 'auth'
+            st.rerun()
+    
+    # Main content
     if st.session_state.page == 'home':
-        st.markdown("## 🔍 Smart Product Search")
+        st.markdown("## 🔍 Product Search")
+        search_query = st.text_input("", placeholder="Search for products...")
         
-        # Search section with button
-        col1, col2 = st.columns([4, 1])
-        with col1:
-            search_query = st.text_input(
-                "",
-                placeholder="E.g., 'suggest me a good wedding outfit in india' or 'comfortable running shoes'",
-                key="search_input"
-            )
-        with col2:
-            search_button = st.button("Search", use_container_width=True, key="search_button")
-        
-        # Initialize container for results
-        results_container = st.container()
-        
-        # Only perform search when button is clicked
-        if search_button and search_query:
-            with st.spinner('Finding the perfect products for you...'):
+        if st.button("Search"):
+            with st.spinner('Searching...'):
                 try:
-                    suggestions_df = fetch_recommendations(session, search_query, 1)
-                    st.session_state.search_performed = True
-                    st.write(suggestions_df)
-                    
-                    # Display results in the container
-                    with results_container:
-                        if not suggestions_df.empty:
-                            st.success('Here are some products you might like!')
-                            
-                            # Calculate number of rows needed
-                            num_products = len(suggestions_df)
-                            num_rows = (num_products + 1) // 2  # Ceiling division
-                            
-                            # Display products in a grid
-                            for row in range(num_rows):
-                                cols = st.columns(2)
-                                # Left column
-                                if row * 2 < num_products:
-                                    display_product_card(
-                                        suggestions_df.iloc[row * 2], 
-                                        cols[0], 
-                                        session, 
-                                        f"search_{row * 2}"
-                                    )
-                                # Right column
-                                if row * 2 + 1 < num_products:
-                                    display_product_card(
-                                        suggestions_df.iloc[row * 2 + 1], 
-                                        cols[1], 
-                                        session, 
-                                        f"search_{row * 2 + 1}"
-                                    )
-                        else:
-                            st.info("No products found matching your search.")
-                
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
-                    st.error("Please try a different search query.")
-        
-        # Show trending products if no search has been performed
-        elif not st.session_state.search_performed:
-            with results_container:
-                st.markdown("### 📈 Trending Products")
-                try:
-                    # Get trending products
-                    default_products = session.sql("""
-                        SELECT * FROM PRODUCT_TABLE 
-                        ORDER BY RANDOM() 
-                        LIMIT 6
-                    """).collect()
-                    
-                    default_df = pd.DataFrame(default_products)
-                    
-                    if not default_df.empty:
-                        # Calculate number of rows needed
-                        num_products = len(default_df)
-                        num_rows = (num_products + 1) // 2  # Ceiling division
-                        
-                        # Display products in a grid
-                        for row in range(num_rows):
+                    results_df = fetch_recommendations(session, search_query, 1)
+                    if not results_df.empty:
+                        for i in range(0, len(results_df), 2):
                             cols = st.columns(2)
-                            # Left column
-                            if row * 2 < num_products:
-                                display_product_card(
-                                    default_df.iloc[row * 2], 
-                                    cols[0], 
-                                    session, 
-                                    f"trend_{row * 2}"
-                                )
-                            # Right column
-                            if row * 2 + 1 < num_products:
-                                display_product_card(
-                                    default_df.iloc[row * 2 + 1], 
-                                    cols[1], 
-                                    session, 
-                                    f"trend_{row * 2 + 1}"
-                                )
+                            if i < len(results_df):
+                                display_product_card(results_df.iloc[i], cols[0], session, i)
+                            if i + 1 < len(results_df):
+                                display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
                     else:
-                        st.info("No trending products available at the moment.")
-                        
+                        st.info("No products found.")
                 except Exception as e:
-                    st.error(f"Error loading trending products: {str(e)}")
-
-    elif st.session_state.page == 'detail' and st.session_state.current_product is not None:
+                    st.error(f"Search error: {str(e)}")
+    
+    elif st.session_state.page == 'detail' and st.session_state.current_product:
         display_product_details(st.session_state.current_product, session)
 
 if __name__ == "__main__":
