@@ -924,7 +924,6 @@ def handle_product_interaction(session, user_id, product_id, interaction_type):
     
     # Only log the interaction if it's not already logged (prevents repeated actions on refresh)
     if interaction_key not in st.session_state.interactions:
-        st.write("here in handle")
         log_interaction(session, user_id, product_id, interaction_type)
         st.session_state.interactions[interaction_key] = True
     
@@ -1018,18 +1017,21 @@ def display_product_details(product, session):
             
             with col1:
                 if st.button("❤️ Like", key=f"detail_like_{product_id}"):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'like')
                     st.toast("Product Liked!")
+                    handle_product_interaction(session, st.session_state.user_id, product_id, 'like')
+                    
 
             with col2:
                 if st.button("🛒 Add to Cart", key=f"detail_cart_{product_id}"):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'add_to_cart')
                     st.toast("Added to Cart!")
+                    handle_product_interaction(session, st.session_state.user_id, product_id, 'add_to_cart')
+                    
                     
             with col3:
                 if st.button("💰 Purchase", key=f"detail_buy_{product_id}"):
-                    handle_product_interaction(session, st.session_state.user_id, product_id, 'purchase')
                     st.toast("Purchase Successful!")
+                    handle_product_interaction(session, st.session_state.user_id, product_id, 'purchase')
+                    
             
             # Show success messages if interaction occurred
             for interaction_type in ['like', 'cart', 'buy']:
