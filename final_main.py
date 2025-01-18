@@ -29,10 +29,19 @@ import os
 # We can also use Snowpark for our analyses!
 # from snowflake.snowpark.context import get_active_session
 
+# SNOWFLAKE_CONFIG = {
+#     "account": "xyb99777",
+#     "user": "TESTING",
+#     "password": "Harsha123",
+#     "warehouse": "ECOMMERCE_WH",
+#     "database": "ECOMMERCE_DB",
+#     "schema": "PUBLIC"
+# }
+
 SNOWFLAKE_CONFIG = {
-    "account": "xyb99777",
-    "user": "TESTING",
-    "password": "Harsha123",
+    "account": "TLB97748",
+    "user": "HARSHAVARDHANGOVIND",
+    "password": "Harsha_456",
     "warehouse": "ECOMMERCE_WH",
     "database": "ECOMMERCE_DB",
     "schema": "PUBLIC"
@@ -40,7 +49,6 @@ SNOWFLAKE_CONFIG = {
 
 session = Session.builder.configs(SNOWFLAKE_CONFIG).create()
 
-session = get_active_session()
 
 
 
