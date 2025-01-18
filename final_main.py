@@ -887,30 +887,26 @@ from datetime import datetime
 
 def log_interaction(session, user_id, product_id, interaction_type):
     """Log user interaction with products using parameterized queries"""
-    if user_id:
-        try:
-            current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')  # Match TIMESTAMP_NTZ precision
+    from datetime import datetime
+    current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')  # Match TIMESTAMP_NTZ precision
+    
+    try:
+        # Correct SQL query with placeholders for parameters
+        sql_query = """
+            INSERT INTO USER_INTERACTION_TABLE 
+            (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
+            VALUES (%s, %s, %s, %s)
+        """
+        
+        # Execute query with parameters safely
+        session.collect(sql_query, (user_id, product_id, interaction_type, current_timestamp))
+        
+        # Commit the transaction if needed
+        session.commit()
 
-            # Use parameterized query to insert data safely
-            sql_query = f"""
-                INSERT INTO USER_INTERACTION_TABLE 
-                (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-                VALUES ({user_id}, {product_id}, '{interaction_type}', '{current_timestamp}')
-            """
-
-
-            # Execute query with parameters
-            session.sql(sql_query, [user_id, product_id, interaction_type, current_timestamp]).collect()
-
-            # Ensure transaction commits
-            session.sql("COMMIT").collect()
-
-            st.success("Interaction logged successfully!")
-
-        except Exception as e:
-            st.error(f"Error logging interaction: {str(e)}")
-
-
+        st.success("Interaction logged successfully!")
+    except Exception as e:
+        st.error(f"Error logging interaction: {str(e)}")
 
 
 def handle_product_interaction(session, user_id, product_id, interaction_type):
@@ -966,6 +962,7 @@ def display_product_card(product, column, session):
                 if st.button("👁️ View Details", key=view_key):
                     st.session_state.current_product = product.to_dict()
                     st.session_state.page = "detail"
+                    handle_product_interaction(session, st.session_state.user_id, product_id, "view")
                     st.rerun()  # Ensures only necessary rerun happens
 
                 if st.button("💰 Purchase", key=buy_key):
