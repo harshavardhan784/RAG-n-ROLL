@@ -698,7 +698,7 @@ def get_recommendations(session, human_query, user_id):
 
     try:
         # Query to fetch data from the specified table
-        query = F"SELECT * FROM {recommendations_table};"
+        query = f"SELECT * FROM {recommendations_table};"
         
         # Execute the query and convert the result to a pandas DataFrame
         df = session.sql(query).to_pandas()
@@ -848,6 +848,24 @@ def log_interaction(session, user_id, product_id, interaction_type):
             """).collect()
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
+
+def record_interaction(session, user_id, product_id, interaction_type):
+    try:
+        interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        session.sql(f"""
+            INSERT INTO USER_INTERACTIONS
+            (INTERACTION_ID, USER_ID, PRODUCT_ID, INTERACTION_TYPE)
+            VALUES (
+                '{interaction_id}',
+                {user_id},
+                '{product_id}',
+                '{interaction_type}'
+            )
+        """).collect()
+        return True
+    except Exception as e:
+        st.error(f"Error recording interaction: {str(e)}")
+        return False
 
 
 def display_product_card(product, column, session, key_prefix):
