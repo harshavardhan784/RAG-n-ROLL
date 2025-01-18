@@ -776,7 +776,6 @@ def header_section():
 
 # here
 
-
 import streamlit as st
 from datetime import datetime
 import pandas as pd
@@ -793,6 +792,39 @@ def init_session_state():
         st.session_state.user_id = None
     if 'search_performed' not in st.session_state:
         st.session_state.search_performed = False
+
+def navigate_to_detail(product):
+    st.session_state.current_product = product
+    st.session_state.page = 'detail'
+    st.rerun()
+
+def navigate_to_home():
+    st.session_state.page = 'home'
+    st.session_state.current_product = None
+    st.rerun()
+
+def log_interaction(session, user_id, product_id, interaction_type):
+    """Log user interactions with products"""
+    try:
+        # Format the timestamp correctly
+        interaction_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Use parameterized query to prevent SQL injection
+        query = """
+        INSERT INTO USER_INTERACTION_TABLE 
+        (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) 
+        VALUES (?, ?, ?, ?)
+        """
+        
+        # Execute the query with parameters
+        session.sql(query).bind((user_id, product_id, interaction_type, interaction_timestamp)).collect()
+        print(f"Logged interaction: User {user_id}, Product {product_id}, Type {interaction_type}")
+        return True
+        
+    except Exception as e:
+        print(f"Error logging interaction: {str(e)}")
+        st.error(f"Failed to log interaction: {str(e)}")
+        return False
 
 def display_product_card(product, col, session, idx):
     """Display a single product card with consistent image sizing"""
@@ -842,27 +874,19 @@ def display_product_card(product, col, session, idx):
             st.markdown(f"### {product['TITLE'][:50]}...")
             st.write(f"⭐ Rating: {product['PRODUCT_RATING']}/5")
             
-            # Convert selling price to integer
-            # selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
-            # st.write(f"💰 Price: ₹{selling_price:,}")
-            
             # Action buttons using unique keys
             cols = st.columns(3)
             
             # View Details button
             with cols[0]:
                 if st.button('View Details', key=f"view_{product['PRODUCT_ID']}_{idx}"):
-                    st.write("view details button")
                     if st.session_state.user_id:
                         log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'view')
-                    st.session_state.current_product = product
-                    st.session_state.page = 'detail'
-                    # st.rerun()
+                    navigate_to_detail(product)
                     
             # Add to Cart button
             with cols[1]:
                 if st.button('Add to Cart', key=f"cart_{product['PRODUCT_ID']}_{idx}"):
-                    st.write("Add to Cart button")
                     if product['PRODUCT_ID'] not in st.session_state.cart_items:
                         st.session_state.cart_items.append(product['PRODUCT_ID'])
                         if st.session_state.user_id:
@@ -884,9 +908,7 @@ def display_product_details(product, session):
     
     # Back button with unique key
     if st.button("← Back to Search Results", key="back_to_search"):
-        st.session_state.page = 'home'
-        st.session_state.current_product = None
-        # st.rerun()
+        navigate_to_home()
     
     # Product title
     st.title(product['TITLE'])
@@ -949,14 +971,8 @@ def display_product_details(product, session):
         
         # Convert prices to integer
         mrp = int(float(product['MRP'])) if product['MRP'] else 0
-        # selling_price = int(float(product['SELLING_PRICE'])) if product['SELLING_PRICE'] else 0
         
         st.write(f"**MRP:** ₹{mrp:,}")
-        # st.write(f"**Selling Price:** ₹{selling_price:,}")
-        
-        # if mrp > 0:
-        #     discount = ((mrp - selling_price) / mrp * 100)
-        #     st.write(f"**Discount:** {discount:.1f}%")
         
         st.write("**Seller Information:**")
         st.write(f"Name: {product['SELLER_NAME']}")
@@ -986,24 +1002,13 @@ def display_product_details(product, session):
                     log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'like')
                 st.success('Product liked!')
 
-def log_interaction(session, user_id, product_id, interaction_type):
-    """Log user interactions with products"""
-    try:
-        query = "INSERT INTO USER_INTERACTION_TABLE (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP) VALUES ('{user_id}', '{product_id}', '{interaction_type}', '{interaction_timestamp}'); "
-        session.sql(query).collect()
-        return True
-        
-    except Exception as e:
-        print(f"Error logging interaction: {str(e)}")
-        return False
-
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
     
     # Initialize session state
     init_session_state()
     
-    # Display header section
+    # Display header section (you need to implement this)
     header_section()
     
     if st.session_state.page == 'home':
@@ -1028,19 +1033,36 @@ def main():
             with st.spinner('Finding the perfect products for you...'):
                 try:
                     suggestions_df = fetch_recommendations(session, search_query, 1)
+                    st.session_state.search_performed = True
                     
                     # Display results in the container
                     with results_container:
                         if not suggestions_df.empty:
                             st.success('Here are some products you might like!')
                             
+                            # Calculate number of rows needed
+                            num_products = len(suggestions_df)
+                            num_rows = (num_products + 1) // 2  # Ceiling division
+                            
                             # Display products in a grid
-                            for i in range(0, len(suggestions_df), 2):
+                            for row in range(num_rows):
                                 cols = st.columns(2)
-                                if i < len(suggestions_df):
-                                    display_product_card(suggestions_df.iloc[i], cols[0], session, f"search_{i}_left")
-                                if i + 1 < len(suggestions_df):
-                                    display_product_card(suggestions_df.iloc[i + 1], cols[1], session, f"search_{i}_right")
+                                # Left column
+                                if row * 2 < num_products:
+                                    display_product_card(
+                                        suggestions_df.iloc[row * 2], 
+                                        cols[0], 
+                                        session, 
+                                        f"search_{row * 2}"
+                                    )
+                                # Right column
+                                if row * 2 + 1 < num_products:
+                                    display_product_card(
+                                        suggestions_df.iloc[row * 2 + 1], 
+                                        cols[1], 
+                                        session, 
+                                        f"search_{row * 2 + 1}"
+                                    )
                         else:
                             st.info("No products found matching your search.")
                 
@@ -1063,12 +1085,29 @@ def main():
                     default_df = pd.DataFrame(default_products)
                     
                     if not default_df.empty:
-                        for i in range(0, len(default_df), 2):
+                        # Calculate number of rows needed
+                        num_products = len(default_df)
+                        num_rows = (num_products + 1) // 2  # Ceiling division
+                        
+                        # Display products in a grid
+                        for row in range(num_rows):
                             cols = st.columns(2)
-                            if i < len(default_df):
-                                display_product_card(default_df.iloc[i], cols[0], session, f"trend_{i}_left")
-                            if i + 1 < len(default_df):
-                                display_product_card(default_df.iloc[i + 1], cols[1], session, f"trend_{i}_right")
+                            # Left column
+                            if row * 2 < num_products:
+                                display_product_card(
+                                    default_df.iloc[row * 2], 
+                                    cols[0], 
+                                    session, 
+                                    f"trend_{row * 2}"
+                                )
+                            # Right column
+                            if row * 2 + 1 < num_products:
+                                display_product_card(
+                                    default_df.iloc[row * 2 + 1], 
+                                    cols[1], 
+                                    session, 
+                                    f"trend_{row * 2 + 1}"
+                                )
                     else:
                         st.info("No trending products available at the moment.")
                         
