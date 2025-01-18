@@ -773,6 +773,10 @@ def header_section():
             st.session_state.cart_items = []
             st.success("Cart cleared!")
 
+
+# here
+
+
 import streamlit as st
 from datetime import datetime
 import pandas as pd
