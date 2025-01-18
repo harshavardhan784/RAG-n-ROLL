@@ -906,44 +906,39 @@ def display_product_card(product, column, session):
     with column:
         with st.container():
             try:
-                st.image(product['IMAGE_LINKS'], use_column_width=True)
+                st.image(product["IMAGE_LINKS"], use_column_width=True)
             except:
                 st.image("https://via.placeholder.com/200", use_column_width=True)
-                
+
             st.markdown(f"**{product['TITLE'][:50]}...**")
             st.write(f"Price: ₹{float(product['MRP']):.2f}")
             st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
-            
-            product_id = product['PRODUCT_ID']
-            
+
+            product_id = product["PRODUCT_ID"]
+            like_key = f"like_{product_id}"
+            cart_key = f"cart_{product_id}"
+            view_key = f"view_{product_id}"
+            buy_key = f"buy_{product_id}"
+
             col1, col2 = st.columns(2)
             with col1:
-                st.button("❤️ Like", key=f"like_{product_id}", 
-                          on_click=handle_product_interaction, 
-                          args=(session, st.session_state.user_id, product_id, 'like'))
-                
-                st.button("🛒 Add to Cart", key=f"cart_{product_id}", 
-                          on_click=handle_product_interaction, 
-                          args=(session, st.session_state.user_id, product_id, 'add_to_cart'))
-                
+                if st.button("❤️ Like", key=like_key):
+                    handle_product_interaction(session, st.session_state.user_id, product_id, "like")
+                    st.toast("Product Liked!")
+
+                if st.button("🛒 Add to Cart", key=cart_key):
+                    handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart")
+                    st.toast("Added to Cart!")
+
             with col2:
-                st.button("👁️ View Details", key=f"view_{product_id}", 
-                          on_click=lambda: go_to_product_details(product))  # Fixed navigation
-                
-                st.button("💰 Purchase", key=f"buy_{product_id}", 
-                          on_click=handle_product_interaction, 
-                          args=(session, st.session_state.user_id, product_id, 'purchase'))
-            
-            # Show success messages without disappearing on refresh
-            for interaction_type in ['like', 'cart', 'buy']:
-                interaction_key = f"{interaction_type}_{product_id}"
-                if interaction_key in st.session_state.interactions:
-                    message_map = {
-                        'like': "Product liked!",
-                        'cart': "Added to cart!",
-                        'buy': "Purchase successful!"
-                    }
-                    st.success(message_map[interaction_type])
+                if st.button("👁️ View Details", key=view_key):
+                    st.session_state.current_product = product.to_dict()
+                    st.session_state.page = "detail"
+                    st.rerun()  # Ensures only necessary rerun happens
+
+                if st.button("💰 Purchase", key=buy_key):
+                    handle_product_interaction(session, st.session_state.user_id, product_id, "purchase")
+                    st.toast("Purchase Successful!")
 
 # 🔴 Fix navigation to details page
 def go_to_product_details(product):
@@ -1015,66 +1010,64 @@ def display_product_details(product, session):
                     }
                     st.success(message_map[interaction_type])
                     del st.session_state.interactions[interaction_key]
-
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
-    
+
     # Initialize session state
-    if 'page' not in st.session_state:
-        st.session_state.page = 'home'
-    if 'current_product' not in st.session_state:
+    if "page" not in st.session_state:
+        st.session_state.page = "home"
+    if "current_product" not in st.session_state:
         st.session_state.current_product = None
-    if 'interactions' not in st.session_state:
+    if "interactions" not in st.session_state:
         st.session_state.interactions = {}
-    if 'logged_in' not in st.session_state:
+    if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
-    
+    if "products" not in st.session_state:
+        st.session_state.products = None  # Store products in session to prevent reordering
+
     if not st.session_state.logged_in:
         auth_page(session)
         return
-    
+
     # Header with logout
-    col1, col2 = st.columns([6,1])
+    col1, col2 = st.columns([6, 1])
     with col1:
         st.title("🛍️ Smart Shopping")
     with col2:
         if st.button("Logout"):
-            for key in st.session_state.keys():
+            for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
-    
-    # Main content
-    if st.session_state.page == 'home':
-        # Search bar
+
+    if st.session_state.page == "home":
         st.markdown("### 🔍 Search Products")
         search_query = st.text_input("", placeholder="What are you looking for today?", key="search_input")
-        
+
         if st.button("Search", key="search_button") and search_query:
-            with st.spinner('Searching for products...'):
+            with st.spinner("Searching for products..."):
                 results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
-                
                 if not results_df.empty:
-                    st.session_state.search_results = results_df  # Store in session
-                    st.session_state.page = 'search_results'  # Navigate without reset
-                    st.rerun()  # 🔴 Rerun after saving state
+                    st.session_state.products = results_df  # Store results in session
                 else:
                     st.info("No products found matching your search.")
 
-                
-        # Show user history and random products if no search is performed
         if not search_query:
-            st.markdown("### Based on Your History")
-            history_products = get_user_history_products(session, st.session_state.user_id)
-            random_products = get_random_products(session, 10 - len(history_products))
-            
-            all_products = pd.concat([history_products, random_products])
-            for i in range(0, len(all_products), 3):
+            if st.session_state.products is None:  # Fetch only once
+                history_products = get_user_history_products(session, st.session_state.user_id)
+                random_products = get_random_products(session, 10 - len(history_products))
+                st.session_state.products = pd.concat([history_products, random_products])
+
+        # Display products from session state
+        if st.session_state.products is not None:
+            products = st.session_state.products
+            st.markdown("### Recommended Products")
+            for i in range(0, len(products), 3):
                 cols = st.columns(3)
                 for j in range(3):
-                    if i + j < len(all_products):
-                        display_product_card(all_products.iloc[i + j], cols[j], session)
-    
-    elif st.session_state.page == 'detail' and st.session_state.current_product:
+                    if i + j < len(products):
+                        display_product_card(products.iloc[i + j], cols[j], session)
+
+    elif st.session_state.page == "detail" and isinstance(st.session_state.current_product, dict):
         display_product_details(st.session_state.current_product, session)
 
 if __name__ == "__main__":
