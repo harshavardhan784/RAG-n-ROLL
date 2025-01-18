@@ -896,14 +896,10 @@ def log_interaction(session, user_id, product_id, interaction_type):
         sql_query = """
             INSERT INTO USER_INTERACTION_TABLE 
             (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
-            VALUES (:1, :2, :3, :4)
+            VALUES ({user_id}, {product_id}, {interaction_type}, {current_timestamp})
         """
         
-        # Execute query with parameters
-        session.collect(sql_query, (user_id, product_id, interaction_type, current_timestamp))
-        
-        # Commit the transaction
-        session.commit()
+        session.sql(sql_query).collect()
         
         return True
     except Exception as e:
