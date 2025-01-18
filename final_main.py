@@ -1186,11 +1186,9 @@ def main():
         #             st.error(f"Search error: {str(e)}")
 
         if st.button("Search"):
-            with st.spinner('Searching...'):
+            with st.spinner('Searching... Please wait for results. First search may take longer.'):
                 try:
-                    st.write("Debug logs:")
                     results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
-                    st.write(f"Results DataFrame shape: {results_df.shape if results_df is not None else 'None'}")
                     if not results_df.empty:
                         for i in range(0, len(results_df), 2):
                             cols = st.columns(2)
@@ -1199,10 +1197,28 @@ def main():
                             if i + 1 < len(results_df):
                                 display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
                     else:
-                        st.info("No products found.")
-                        st.write("Check the debug logs above to see where the process failed")
+                        st.info("No products found. Please try your search again if this is unexpected.")
                 except Exception as e:
-                    st.error(f"Search error: {str(e)}")
+                    st.error(f"Search error: {str(e)}. Please try again.")
+
+        # if st.button("Search"):
+        #     with st.spinner('Searching...'):
+        #         try:
+        #             st.write("Debug logs:")
+        #             results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
+        #             st.write(f"Results DataFrame shape: {results_df.shape if results_df is not None else 'None'}")
+        #             if not results_df.empty:
+        #                 for i in range(0, len(results_df), 2):
+        #                     cols = st.columns(2)
+        #                     if i < len(results_df):
+        #                         display_product_card(results_df.iloc[i], cols[0], session, i)
+        #                     if i + 1 < len(results_df):
+        #                         display_product_card(results_df.iloc[i + 1], cols[1], session, i+1)
+        #             else:
+        #                 st.info("No products found.")
+        #                 st.write("Check the debug logs above to see where the process failed")
+        #         except Exception as e:
+        #             st.error(f"Search error: {str(e)}")
     
     elif st.session_state.page == 'detail' and st.session_state.current_product:
         display_product_details(st.session_state.current_product, session)
