@@ -900,7 +900,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
         """
         
         # Execute query with parameters
-        session.execute(sql_query, (user_id, product_id, interaction_type, current_timestamp))
+        session.collect(sql_query, (user_id, product_id, interaction_type, current_timestamp))
         
         # Commit the transaction
         session.commit()
