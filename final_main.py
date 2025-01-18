@@ -343,8 +343,9 @@ def filter_temp_table(session, user_query, user_id):
         # Process numeric columns
         flattened_results = process_numeric_columns(flattened_results)
         
+        table = get_user_specific_table_name("TEMP_TABLE", user_id)
         # Save to temporary table
-        if save_to_temp_table(session, flattened_results, "TEMP_TABLE"):
+        if save_to_temp_table(session, flattened_results, table):
             return flattened_results
         else:
             print("Failed to save results to temporary table")
@@ -423,8 +424,9 @@ def filter_context_table(session, user_query, user_id):
         # Process numeric columns
         flattened_results = process_numeric_columns(flattened_results)
         
+        table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
         # Save to temporary table
-        if save_to_temp_table(session, flattened_results, "CONTEXT_TABLE"):
+        if save_to_temp_table(session, flattened_results, table):
             return flattened_results
         else:
             print("Failed to save results to temporary table")
@@ -504,8 +506,10 @@ def filter_augment_table(session, user_query, user_id):
 
         print(flattened_results)
         
+        table = get_user_specific_table_name("RECOMMENDATIONS_TABLE", user_id)
+
         # Save to temporary table
-        if save_to_temp_table(session, flattened_results, "RECOMMENDATIONS_TABLE"):
+        if save_to_temp_table(session, flattened_results, table):
             return flattened_results
         else:
             print("Failed to save results to temporary table")
