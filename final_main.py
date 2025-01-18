@@ -816,6 +816,52 @@ def record_interaction(session, user_id, product_id, interaction_type):
     except Exception as e:
         st.error(f"Error recording interaction: {str(e)}")
         return False
+
+
+def auth_page(session):
+    st.title("Welcome to Smart Shopping")
+    
+    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    
+    with tab1:
+        st.header("Login")
+        username = st.text_input("Username", key="login_username")
+        password = st.text_input("Password", type="password", key="login_password")
+        
+        if st.button("Login"):
+            if username and password:
+                user_id = login_user(session, username, password)
+                if user_id:
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = user_id
+                    st.session_state.page = 'home'
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials")
+            else:
+                st.warning("Please fill in all fields")
+    
+    with tab2:
+        st.header("Sign Up")
+        new_username = st.text_input("Username", key="new_username")
+        new_email = st.text_input("Email", key="new_email")
+        new_password = st.text_input("Password", type="password", key="new_password")
+        confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password")
+        
+        if st.button("Sign Up"):
+            if new_username and new_email and new_password and confirm_password:
+                if new_password != confirm_password:
+                    st.error("Passwords do not match")
+                else:
+                    result = register_user(session, new_username, new_email, new_password)
+                    if result is True:
+                        st.success("Registration successful! Please login.")
+                    else:
+                        st.error(result)
+            else:
+                st.warning("Please fill in all fields")
+
+
 def get_user_history_products(session, user_id, limit=2):
     """Fetch products from user's interaction history"""
     query = f"""
@@ -975,3 +1021,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
