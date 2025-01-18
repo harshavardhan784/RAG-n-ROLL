@@ -155,9 +155,11 @@ def construct_context(session, user_id):
         str: A JSON string representation of the context table
     """
     try:
+
+        context_table = get_user_specific_table_name("CONTEXT_TABLE", user_id)
         # Step 1: Create or replace the context table
         create_query = f"""
-            CREATE OR REPLACE TABLE CONTEXT_TABLE AS
+            CREATE OR REPLACE TABLE {context_table} AS
             SELECT 
                 p.*, 
                 u.USER_ID, 
@@ -174,7 +176,7 @@ def construct_context(session, user_id):
         session.sql(create_query).collect()
 
         # Step 2: Fetch the updated context table
-        results = session.sql("SELECT * FROM CONTEXT_TABLE").to_pandas()
+        results = session.sql("SELECT * FROM {context_table}").to_pandas()
 
         # Step 3: Convert the DataFrame to JSON
         context = results.to_json(orient="records", lines=False)
@@ -695,7 +697,7 @@ def get_recommendations(session, human_query, user_id):
 
     try:
         # Query to fetch data from the specified table
-        query = "SELECT * FROM recommendations_table;"
+        query = F"SELECT * FROM {recommendations_table};"
         
         # Execute the query and convert the result to a pandas DataFrame
         df = session.sql(query).to_pandas()
