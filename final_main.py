@@ -782,7 +782,6 @@ from datetime import datetime
 import hashlib
 import json
 
-# Initialize session states
 def init_session_state():
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
@@ -797,12 +796,11 @@ def init_session_state():
     if 'search_performed' not in st.session_state:
         st.session_state.search_performed = False
 
-# Authentication functions
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def login_user(session, username, password):
-    # password_hash = hash_password(password)
+    password_hash = hash_password(password)
     result = session.sql(f"""
         SELECT USER_ID, USERNAME 
         FROM USER_TABLE 
@@ -814,36 +812,47 @@ def login_user(session, username, password):
 
 def register_user(session, username, email, password):
     try:
-        # password_hash = hash_password(password)
+        password_hash = hash_password(password)
+        
+        # Check for existing user
+        existing_user = session.sql(f"""
+            SELECT COUNT(*) as count 
+            FROM USER_TABLE 
+            WHERE USERNAME = '{username}' OR EMAIL = '{email}'
+        """).collect()
+        
+        if existing_user[0]['COUNT'] > 0:
+            return "Username or email already exists"
+        
+        # Insert new user
         session.sql(f"""
             INSERT INTO USER_TABLE (USERNAME, EMAIL, PASSWORD_HASH)
             VALUES ('{username}', '{email}', '{password_hash}')
         """).collect()
+        
         return True
+        
     except Exception as e:
-        if 'duplicate key value' in str(e):
-            return "Username or email already exists"
         return str(e)
 
-# Interaction logging
 def log_interaction(session, user_id, product_id, interaction_type):
+    """Log user interaction with products according to the actual table schema"""
     if user_id:
         try:
-            interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             session.sql(f"""
-                INSERT INTO USER_INTERACTIONS 
-                (INTERACTION_ID, USER_ID, PRODUCT_ID, INTERACTION_TYPE)
+                INSERT INTO USER_INTERACTION_TABLE 
+                (USER_ID, PRODUCT_ID, INTERACTION_TYPE, INTERACTION_TIMESTAMP)
                 VALUES (
-                    '{interaction_id}',
                     {user_id},
-                    '{product_id}',
-                    '{interaction_type}'
+                    {product_id},
+                    '{interaction_type}',
+                    '{current_timestamp}'
                 )
             """).collect()
         except Exception as e:
             st.error(f"Error logging interaction: {str(e)}")
 
-# UI Components
 def display_product_card(product, col, session, idx):
     with col:
         with st.container():
@@ -892,40 +901,6 @@ def display_product_card(product, col, session, idx):
             
             st.markdown('</div>', unsafe_allow_html=True)
 
-def display_product_details(product, session):
-    st.button("← Back", on_click=lambda: setattr(st.session_state, 'page', 'home'))
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        try:
-            st.image(product['IMAGE_LINKS'], width=300)
-        except:
-            st.write("Image not available")
-    
-    with col2:
-        st.title(product['TITLE'])
-        st.write(f"**Category:** {product['CATEGORY_1']} → {product['CATEGORY_2']} → {product['CATEGORY_3']}")
-        st.write(f"**Seller:** {product['SELLER_NAME']} (Rating: ⭐{product['SELLER_RATING']}/5)")
-        
-        if st.button('Add to Cart'):
-            if product['PRODUCT_ID'] not in st.session_state.cart_items:
-                st.session_state.cart_items.append(product['PRODUCT_ID'])
-                log_interaction(session, st.session_state.user_id, product['PRODUCT_ID'], 'add_to_cart')
-                st.success('Added to cart!')
-    
-    st.markdown("### Description")
-    st.write(product['DESCRIPTION'])
-    
-    if product.get('HIGHLIGHTS'):
-        st.markdown("### Highlights")
-        try:
-            highlights = json.loads(product['HIGHLIGHTS'])
-            for highlight in highlights:
-                st.markdown(f"• {highlight}")
-        except:
-            st.write("No highlights available")
-
 def auth_page(session):
     st.title("Welcome to Smart Shopping")
     
@@ -946,24 +921,32 @@ def auth_page(session):
                     st.rerun()
                 else:
                     st.error("Invalid credentials")
+            else:
+                st.warning("Please fill in all fields")
     
     with tab2:
         st.header("Sign Up")
         new_username = st.text_input("Username", key="new_username")
         new_email = st.text_input("Email", key="new_email")
         new_password = st.text_input("Password", type="password", key="new_password")
+        confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password")
         
         if st.button("Sign Up"):
-            if new_username and new_email and new_password:
-                result = register_user(session, new_username, new_email, new_password)
-                if result is True:
-                    st.success("Registration successful! Please login.")
+            if new_username and new_email and new_password and confirm_password:
+                if new_password != confirm_password:
+                    st.error("Passwords do not match")
                 else:
-                    st.error(result)
+                    result = register_user(session, new_username, new_email, new_password)
+                    if result is True:
+                        st.success("Registration successful! Please login.")
+                    else:
+                        st.error(result)
+            else:
+                st.warning("Please fill in all fields")
 
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
-    # session = get_active_session()  # You'll need to implement this function
+    session = get_active_session()  # You'll need to implement this
     init_session_state()
     
     if not st.session_state.logged_in:
