@@ -1131,12 +1131,13 @@ def main():
         if st.session_state.products is not None:
             products = st.session_state.products
             st.markdown("### Recommended Products")
-            for i in range(0, len(products), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i + j < len(products):
-                        # display_product_card(products.iloc[i + j], cols[j], session)
-                        display_products_with_pagination(products.iloc[i + j], cols[j], session)
+            # for i in range(0, len(products), 3):
+            #     cols = st.columns(3)
+            #     for j in range(3):
+            #         if i + j < len(products):
+            #             display_product_card(products.iloc[i + j], cols[j], session)
+
+            display_products_with_pagination(products, session)
                         
 
     elif st.session_state.page == "detail" and isinstance(st.session_state.current_product, dict):
