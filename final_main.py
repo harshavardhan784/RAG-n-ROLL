@@ -595,10 +595,10 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     SELLER_NAME,
                     SELLER_RATING,
                     TITLE,
-                    similarity
+                    similarity,
+                    ROW_NUMBER() OVER (PARTITION BY PRODUCT_ID ORDER BY similarity DESC NULLS LAST) AS row_num
                 FROM cross_product
                 WHERE similarity > {threshold}
-                ORDER BY similarity DESC
             ),
             default_results AS (
                 SELECT
@@ -614,20 +614,24 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     SELLER_NAME,
                     SELLER_RATING,
                     TITLE,
-                    NULL as similarity
+                    NULL as similarity,
+                    ROW_NUMBER() OVER (PARTITION BY PRODUCT_ID ORDER BY NULL) AS row_num
                 FROM product_table_stage
                 LIMIT 100
             )
             SELECT *
             FROM (
-                SELECT * FROM ranked_results
+                -- Select only the top similarity result per product
+                SELECT * FROM ranked_results WHERE row_num = 1
                 UNION ALL
+                -- Include default results only if no context_table exists
                 SELECT * FROM default_results
                 WHERE NOT EXISTS (SELECT 1 FROM context_table)
             ) final_results
-            ORDER BY similarity DESC NULLS LAST
+            ORDER BY PRODUCT_ID, similarity DESC NULLS LAST
             LIMIT 100;
         """).collect()
+
         print("Step 6: Results successfully stored in augment_table.")
     except Exception as e:
         print(f"Error during semantic search: {str(e)}")
