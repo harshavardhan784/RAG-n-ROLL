@@ -354,82 +354,82 @@ def filter_temp_table(session, user_query):
         return pd.DataFrame()
 
 
-# def filter_context_table(session, user_query):
-#     """
-#     Main function to process search query and filter results.
-#     """
-#     try:
-#         # Clean the query if necessary (here, it's just a placeholder)
-#         cleaned_query = user_query
+def filter_context_table(session, user_query):
+    """
+    Main function to process search query and filter results.
+    """
+    try:
+        # Clean the query if necessary (here, it's just a placeholder)
+        cleaned_query = user_query
 
-#         # Create the Cortex Search Service (ensure it is created beforehand)
-#         create_cortex_search_service(session, "CONTEXT_TABLE")
+        # Create the Cortex Search Service (ensure it is created beforehand)
+        create_cortex_search_service(session, "CONTEXT_TABLE")
 
-#         # Create search configuration
-#         search_config = create_search_config(cleaned_query)
+        # Create search configuration
+        search_config = create_search_config(cleaned_query)
 
-#         # Convert the search configuration to a JSON string
-#         search_json = json.dumps(search_config)
+        # Convert the search configuration to a JSON string
+        search_json = json.dumps(search_config)
 
-#         # Debug: Print the search JSON to ensure it's correctly formatted
-#         print("Debug - Search JSON:", search_json)
+        # Debug: Print the search JSON to ensure it's correctly formatted
+        print("Debug - Search JSON:", search_json)
         
-#         # Build the final SQL query using the escaped JSON configuration
-#         query = build_search_query(search_json)
+        # Build the final SQL query using the escaped JSON configuration
+        query = build_search_query(search_json)
 
-#         # Debug: Print the final query before execution
-#         print("Debug - Executing query:", query)
+        # Debug: Print the final query before execution
+        print("Debug - Executing query:", query)
         
-#         # Execute query
-#         results = session.sql(query).to_pandas()
-#         # print("Debug - Query results:", results)
-#         # print("here1")
+        # Execute query
+        results = session.sql(query).to_pandas()
+        # print("Debug - Query results:", results)
+        # print("here1")
         
-#         if results.empty:
-#             print("No results found")
-#             return pd.DataFrame()
+        if results.empty:
+            print("No results found")
+            return pd.DataFrame()
         
-#         # Parse results
-#         parsed_results = results['SEARCH_RESULTS'].iloc[0]
-#         # print("parsed_results:", parsed_results)
-#         # print("here2")
+        # Parse results
+        parsed_results = results['SEARCH_RESULTS'].iloc[0]
+        # print("parsed_results:", parsed_results)
+        # print("here2")
         
-#         # Handle string to dict conversion if necessary
-#         if isinstance(parsed_results, str):
-#             try:
-#                 parsed_results = json.loads(parsed_results)
-#             except json.JSONDecodeError:
-#                 print("Error: Could not parse results as JSON")
-#                 return pd.DataFrame()
+        # Handle string to dict conversion if necessary
+        if isinstance(parsed_results, str):
+            try:
+                parsed_results = json.loads(parsed_results)
+            except json.JSONDecodeError:
+                print("Error: Could not parse results as JSON")
+                return pd.DataFrame()
         
-#         # Extract results array
-#         if isinstance(parsed_results, dict) and 'results' in parsed_results:
-#             search_results = parsed_results['results']
-#             print("here3")
-#             print(search_results)
-#         else:
-#             print("No results array found in response")
-#             return pd.DataFrame()
+        # Extract results array
+        if isinstance(parsed_results, dict) and 'results' in parsed_results:
+            search_results = parsed_results['results']
+            print("here3")
+            print(search_results)
+        else:
+            print("No results array found in response")
+            return pd.DataFrame()
         
-#         # Convert to DataFrame and process
-#         flattened_results = pd.json_normalize(search_results)
-#         if flattened_results.empty:
-#             print("Search returned no matching results")
-#             return pd.DataFrame()
+        # Convert to DataFrame and process
+        flattened_results = pd.json_normalize(search_results)
+        if flattened_results.empty:
+            print("Search returned no matching results")
+            return pd.DataFrame()
         
-#         # Process numeric columns
-#         flattened_results = process_numeric_columns(flattened_results)
+        # Process numeric columns
+        flattened_results = process_numeric_columns(flattened_results)
         
-#         # Save to temporary table
-#         if save_to_temp_table(session, flattened_results, "CONTEXT_TABLE"):
-#             return flattened_results
-#         else:
-#             print("Failed to save results to temporary table")
-#             return flattened_results
+        # Save to temporary table
+        if save_to_temp_table(session, flattened_results, "CONTEXT_TABLE"):
+            return flattened_results
+        else:
+            print("Failed to save results to temporary table")
+            return flattened_results
         
-#     except Exception as e:
-#         print(f"Error in filter_temp_table: {str(e)}")
-#         return pd.DataFrame()
+    except Exception as e:
+        print(f"Error in filter_temp_table: {str(e)}")
+        return pd.DataFrame()
 
 def filter_augment_table(session, user_query):
     """
@@ -561,7 +561,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
         print("here5")
         # Step 6: Perform semantic search and combine results
         session.sql(f"""
-            CREATE OR REPLACE TABLE AUGMENT_TABLE AS
+            CREATE OR REPLACE TABLE augment_table AS
             WITH cross_product AS (
                 SELECT 
                     p.CATEGORY_1,
@@ -571,7 +571,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.HIGHLIGHTS,
                     p.IMAGE_LINKS,
                     p.MRP,
-                    UNIQUE(p.PRODUCT_ID),
+                    p.PRODUCT_ID,
                     p.PRODUCT_RATING,
                     p.SELLER_NAME,
                     p.SELLER_RATING,
@@ -579,7 +579,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.product_vec,
                     VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
                 FROM context_table c
-                LEFT JOIN product_table_stage p on 1 = 1
+                CROSS JOIN product_table_stage p
             ),
             ranked_results AS (
                 SELECT
@@ -653,12 +653,12 @@ def get_recommendations(session, human_query, user_id):
     print("filter_temp_table\n")
     filter_temp_table(session, mistral_query)
 
-    # filter_context_table(session, mistral_query)
+    filter_context_table(session, mistral_query)
     
     print("perform_semantic_search\n")
     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
 
-    return filter_augment_table(session, mistral_query)
+    filter_augment_table(session, mistral_query)
 
     try:
         # Query to fetch data from the specified table
@@ -1080,7 +1080,6 @@ def main():
                 results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
                 if not results_df.empty:
                     st.session_state.products = results_df  # Store results in session
-                    st.write(results_df)
                 else:
                     st.info("No products found matching your search.")
 
