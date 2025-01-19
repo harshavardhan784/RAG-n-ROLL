@@ -983,7 +983,9 @@ def display_product_card(product, column, session):
             if rating is not None:
                 st.write(f"Rating: {float(rating)}⭐")
 
-            product_id = product.get("PRODUCT_ID")
+            
+            product_id = product["PRODUCT_ID"]
+            st.write(product_id)
             if product_id is None:
                 return  # Skip rendering if product ID is missing
 
