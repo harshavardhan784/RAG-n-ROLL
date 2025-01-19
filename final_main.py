@@ -327,7 +327,7 @@ def filter_temp_table(session, user_query):
         # Extract results array
         if isinstance(parsed_results, dict) and 'results' in parsed_results:
             search_results = parsed_results['results']
-            print("here3")
+            # print("here3")
             print(search_results)
         else:
             print("No results array found in response")
@@ -405,7 +405,7 @@ def filter_context_table(session, user_query):
         # Extract results array
         if isinstance(parsed_results, dict) and 'results' in parsed_results:
             search_results = parsed_results['results']
-            print("here3")
+            # print("here3")
             print(search_results)
         else:
             print("No results array found in response")
@@ -560,77 +560,65 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
     
         print("here5")
         # Step 6: Perform semantic search and combine results
-        # session.sql(f"""
-        #     CREATE OR REPLACE TABLE AUGMENT_TABLE AS
-        #     WITH cross_product AS (
-        #         SELECT 
-        #             p.CATEGORY_1,
-        #             p.CATEGORY_2,
-        #             p.CATEGORY_3,
-        #             p.DESCRIPTION,
-        #             p.HIGHLIGHTS,
-        #             p.IMAGE_LINKS,
-        #             p.MRP,
-        #             p.PRODUCT_ID,
-        #             p.PRODUCT_RATING,
-        #             p.SELLER_NAME,
-        #             p.SELLER_RATING,
-        #             p.TITLE,
-        #             p.product_vec,
-        #             VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
-        #         FROM context_table c
-        #         CROSS JOIN product_table_stage p
-        #     ),
-        #     ranked_results AS (
-        #         SELECT
-        #             CATEGORY_1,
-        #             CATEGORY_2,
-        #             CATEGORY_3,
-        #             DESCRIPTION,
-        #             HIGHLIGHTS,
-        #             IMAGE_LINKS,
-        #             MRP,
-        #             PRODUCT_ID,
-        #             PRODUCT_RATING,
-        #             SELLER_NAME,
-        #             SELLER_RATING,
-        #             TITLE,
-        #             similarity
-        #         FROM cross_product
-        #         WHERE similarity > {threshold}
-        #         ORDER BY similarity DESC
-        #     ),
-        #     default_results AS (
-        #         SELECT
-        #             CATEGORY_1,
-        #             CATEGORY_2,
-        #             CATEGORY_3,
-        #             DESCRIPTION,
-        #             HIGHLIGHTS,
-        #             IMAGE_LINKS,
-        #             MRP,
-        #             PRODUCT_ID,
-        #             PRODUCT_RATING,
-        #             SELLER_NAME,
-        #             SELLER_RATING,
-        #             TITLE,
-        #             NULL as similarity
-        #         FROM product_table_stage
-        #         LIMIT 100
-        #     )
-        #     SELECT *
-        #     FROM (
-        #         SELECT * FROM ranked_results
-        #         UNION ALL
-        #         SELECT * FROM default_results
-        #         WHERE NOT EXISTS (SELECT 1 FROM context_table)
-        #         GROUP BY PRODUCT_ID
-        #     ) final_results
-        #     ORDER BY similarity DESC NULLS LAST
-        #     LIMIT 100;
-        # """).collect()
-
-        query = """
+        session.sql(f"""
+            CREATE OR REPLACE TABLE AUGMENT_TABLE AS
+            WITH cross_product AS (
+                SELECT 
+                    p.CATEGORY_1,
+                    p.CATEGORY_2,
+                    p.CATEGORY_3,
+                    p.DESCRIPTION,
+                    p.HIGHLIGHTS,
+                    p.IMAGE_LINKS,
+                    p.MRP,
+                    p.PRODUCT_ID,
+                    p.PRODUCT_RATING,
+                    p.SELLER_NAME,
+                    p.SELLER_RATING,
+                    p.TITLE,
+                    p.product_vec,
+                    VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
+                FROM context_table c
+                CROSS JOIN product_table_stage p
+            ),
+            ranked_results AS (
+                SELECT
+                    CATEGORY_1,
+                    CATEGORY_2,
+                    CATEGORY_3,
+                    DESCRIPTION,
+                    HIGHLIGHTS,
+                    IMAGE_LINKS,
+                    MRP,
+                    PRODUCT_ID,
+                    PRODUCT_RATING,
+                    SELLER_NAME,
+                    SELLER_RATING,
+                    TITLE,
+                    similarity
+                FROM cross_product
+                WHERE similarity > {threshold}
+                ORDER BY similarity DESC
+            ),
+            default_results AS (
+                SELECT
+                    CATEGORY_1,
+                    CATEGORY_2,
+                    CATEGORY_3,
+                    DESCRIPTION,
+                    HIGHLIGHTS,
+                    IMAGE_LINKS,
+                    MRP,
+                    PRODUCT_ID,
+                    PRODUCT_RATING,
+                    SELLER_NAME,
+                    SELLER_RATING,
+                    TITLE,
+                    NULL as similarity
+                FROM product_table_stage
+                LIMIT 100
+            )
+            
             CREATE OR REPLACE TABLE AUGMENT_TABLE AS
             WITH final_results AS (
                 SELECT 
@@ -711,10 +699,10 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
             ORDER BY similarity DESC NULLS LAST
             LIMIT 100;
 
+            """
+        ).collect()
 
-        """
-
-        df = session.sql(query).collect()
+        # df = session.sql(query).collect()
 
 
         print("Step 6: Results successfully stored in augment_table.")
