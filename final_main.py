@@ -579,7 +579,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.product_vec,
                     VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
                 FROM context_table c
-                CROSS JOIN product_table_stage p
+                LEFT JOIN product_table_stage p on 1 = 1
             ),
             ranked_results AS (
                 SELECT
