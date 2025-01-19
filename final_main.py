@@ -1080,6 +1080,7 @@ def main():
                 results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
                 if not results_df.empty:
                     st.session_state.products = results_df  # Store results in session
+                    st.write(results_df)
                 else:
                     st.info("No products found matching your search.")
 
