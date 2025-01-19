@@ -921,6 +921,7 @@ def handle_product_interaction(session, user_id, product_id, interaction_type):
 def display_product_card(product, column, session):
     """Display product card with interaction buttons"""
     with column:
+        st.write(st.session_state.user_id)
         with st.container():
             try:
                 st.image(product["IMAGE_LINKS"], use_column_width=True)
