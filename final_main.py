@@ -958,6 +958,8 @@ def display_products_with_pagination(products, session):
     with col2:
         st.write(f"Page {st.session_state.current_page} of {total_pages}")
 
+import streamlit as st
+from datetime import datetime
 
 def display_product_card(product, column, session):
     """Display product card with interaction buttons"""
@@ -965,15 +967,26 @@ def display_product_card(product, column, session):
         st.write(st.session_state.user_id)
         with st.container():
             try:
-                st.image(product["IMAGE_LINKS"], use_column_width=True)
+                st.image(product.get("IMAGE_LINKS", "https://via.placeholder.com/200"), use_column_width=True)
             except:
                 st.image("https://via.placeholder.com/200", use_column_width=True)
 
-            st.markdown(f"**{product['TITLE'][:50]}...**")
-            st.write(f"Price: ₹{float(product['MRP']):.2f}")
-            st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
+            title = product.get("TITLE")
+            if title:
+                st.markdown(f"**{title[:50]}...**")
 
-            product_id = product["PRODUCT_ID"]
+            mrp = product.get("MRP")
+            if mrp is not None:
+                st.write(f"Price: ₹{float(mrp):.2f}")
+
+            rating = product.get("PRODUCT_RATING")
+            if rating is not None:
+                st.write(f"Rating: {float(rating)}⭐")
+
+            product_id = product.get("PRODUCT_ID")
+            if product_id is None:
+                return  # Skip rendering if product ID is missing
+
             like_key = f"like_{product_id}"
             cart_key = f"cart_{product_id}"
             view_key = f"view_{product_id}"
@@ -982,28 +995,23 @@ def display_product_card(product, column, session):
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("❤️ Like", key=like_key):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "like"):
                         st.toast("Product Liked!")
-                    
 
                 if st.button("🛒 Add to Cart", key=cart_key):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart"):
                         st.toast("Added to Cart!")
 
             with col2:
                 if st.button("👁️ View Details", key=view_key):
-                    st.session_state.current_product = product.to_dict()
+                    st.session_state.current_product = product
                     st.session_state.page = "detail"
                     handle_product_interaction(session, st.session_state.user_id, product_id, "view")
                     st.rerun()  # Ensures only necessary rerun happens
 
                 if st.button("💰 Purchase", key=buy_key):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "purchase"):
                         st.toast("Purchase Successful!")
-                    
 
 # 🔴 Fix navigation to details page
 def go_to_product_details(product):
@@ -1014,7 +1022,6 @@ def go_to_product_details(product):
 
 def display_product_details(product, session):
     """Display detailed product page"""
-    # Container for the whole detail page
     with st.container():
         if st.button("← Back to Products"):
             st.session_state.page = 'home'
@@ -1025,51 +1032,66 @@ def display_product_details(product, session):
         
         with col1:
             try:
-                st.image(product['IMAGE_LINKS'], width=400)
+                st.image(product.get("IMAGE_LINKS", "https://via.placeholder.com/400"), width=400)
             except:
                 st.image("https://via.placeholder.com/400", width=400)
                 
         with col2:
-            st.title(product['TITLE'])
+            title = product.get("TITLE")
+            if title:
+                st.title(title)
+
             st.markdown("### Product Details")
-            st.write(f"**Price:** ₹{float(product['MRP']):.2f}")
-            st.write(f"**Rating:** {float(product['PRODUCT_RATING'])}⭐")
-            st.write(f"**Seller:** {product['SELLER_NAME']}")
-            st.write(f"**Category:** {product['CATEGORY_1']} > {product['CATEGORY_2']} > {product['CATEGORY_3']}")
-            
-            # Highlights
+
+            mrp = product.get("MRP")
+            if mrp is not None:
+                st.write(f"**Price:** ₹{float(mrp):.2f}")
+
+            rating = product.get("PRODUCT_RATING")
+            if rating is not None:
+                st.write(f"**Rating:** {float(rating)}⭐")
+
+            seller = product.get("SELLER_NAME")
+            if seller:
+                st.write(f"**Seller:** {seller}")
+
+            category1 = product.get("CATEGORY_1")
+            category2 = product.get("CATEGORY_2")
+            category3 = product.get("CATEGORY_3")
+            categories = " > ".join(filter(None, [category1, category2, category3]))
+            if categories:
+                st.write(f"**Category:** {categories}")
+
             st.markdown("### Highlights")
-            highlights = product['HIGHLIGHTS']
-            st.write(highlights)
-                    
-            # Description
+            highlights = product.get("HIGHLIGHTS")
+            if highlights:
+                st.write(highlights)
+
             st.markdown("### Description")
-            st.write(product['DESCRIPTION'])
-            
-            # Action buttons
+            description = product.get("DESCRIPTION")
+            if description:
+                st.write(description)
+
             col1, col2, col3 = st.columns(3)
-            product_id = product['PRODUCT_ID']
-            
+            product_id = product.get("PRODUCT_ID")
+            if product_id is None:
+                return  # Skip rendering if product ID is missing
+
             with col1:
                 if st.button("❤️ Like", key=f"detail_like_{product_id}"):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, 'like'):
                         st.toast("Product Liked!")
-                    
 
             with col2:
                 if st.button("🛒 Add to Cart", key=f"detail_cart_{product_id}"):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, 'add_to_cart'):
                         st.toast("Added to Cart!")
-                    
-                    
+
             with col3:
                 if st.button("💰 Purchase", key=f"detail_buy_{product_id}"):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, 'purchase'):
                         st.toast("Purchase Successful!")
-            
+
             # Show success messages if interaction occurred
             for interaction_type in ['like', 'cart', 'buy']:
                 interaction_key = f"{interaction_type}_{product_id}"
@@ -1081,6 +1103,7 @@ def display_product_details(product, session):
                     }
                     st.success(message_map[interaction_type])
                     del st.session_state.interactions[interaction_key]
+
 def main():
     st.set_page_config(page_title="Smart Shopping", layout="wide")
 
