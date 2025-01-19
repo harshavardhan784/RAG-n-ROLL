@@ -793,13 +793,25 @@ def display_product_card(product, column, session, var):
     #         st.session_state.current_product = None
     #         st.rerun()
 
+    # with column:
+    #     with st.container():
+    #         try:
+    #             st.image(product["IMAGE_LINKS"], width=200)  # Set a fixed width of 200 pixels
+    #         except:
+    #             st.image("https://via.placeholder.com/200", width=200)  # Use the same width for placeholder
+
     with column:
         with st.container():
             try:
-                st.image(product["IMAGE_LINKS"], width=200)  # Set a fixed width of 200 pixels
+                st.markdown(
+                    f'<img src="{product["IMAGE_LINKS"]}" style="width:200px;height:200px;object-fit:cover;border-radius:5px;">',
+                    unsafe_allow_html=True,
+                )
             except:
-                st.image("https://via.placeholder.com/200", width=200)  # Use the same width for placeholder
-
+                st.markdown(
+                    '<img src="https://via.placeholder.com/200" style="width:200px;height:200px;object-fit:cover;border-radius:5px;">',
+                    unsafe_allow_html=True,
+                )
 
             st.markdown(f"**{product['TITLE'][:50]}...**")
             st.write(f"Price: ₹{float(product['MRP']):.2f}")
