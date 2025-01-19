@@ -905,7 +905,7 @@ def display_product_card(product, column, session, var):
     """Display product card with interaction buttons"""
 
     if var:
-        if st.button("← Back to Products"):
+        if st.button("← Back to Products", key="back_to_products_from_search"):
             st.session_state.page = 'home'
             st.session_state.current_product = None
             st.rerun()
@@ -964,7 +964,7 @@ def display_product_details(product, session):
     """Display detailed product page"""
     # Container for the whole detail page
     with st.container():
-        if st.button("← Back to Products"):
+        if st.button("← Back to Products", key="back_to_products_from_view"):
             st.session_state.page = 'home'
             st.session_state.current_product = None
             st.rerun()
