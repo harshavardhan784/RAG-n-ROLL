@@ -796,9 +796,10 @@ def display_product_card(product, column, session, var):
     with column:
         with st.container():
             try:
-                st.image(product["IMAGE_LINKS"], use_column_width=150)
+                st.image(product["IMAGE_LINKS"], width=200)  # Set a fixed width of 200 pixels
             except:
-                st.image("https://via.placeholder.com/200", use_column_width=150)
+                st.image("https://via.placeholder.com/200", width=200)  # Use the same width for placeholder
+
 
             st.markdown(f"**{product['TITLE'][:50]}...**")
             st.write(f"Price: ₹{float(product['MRP']):.2f}")
