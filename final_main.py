@@ -948,7 +948,7 @@ def main():
     col1, col2 = st.columns([6, 1])
     with col1:
         st.title("🛍️ MindMart Smart Shopping")
-        st.subheader("Shop Smarter, Save More!")  # This can be your tagline
+        st.subheader("Smart Search. Personalized Picks. Just for You!!")  # This can be your tagline
 
     with col2:
         if st.button("Logout"):
