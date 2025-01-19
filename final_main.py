@@ -959,7 +959,9 @@ def display_products_with_pagination(products, session):
         st.write(f"Page {st.session_state.current_page} of {total_pages}")
 
 
-def display_product_card(product, column, session):
+import uuid
+
+def display_product_card(product, column, session, index):
     """Display product card with interaction buttons"""
     with column:
         with st.container():
@@ -973,12 +975,15 @@ def display_product_card(product, column, session):
             st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
 
             product_id = product["PRODUCT_ID"]
-            unique_suffix = f"{product_id}_{st.session_state.user_id}"
+            unique_id = uuid.uuid4().hex[:8]  # Ensure uniqueness
             
-            like_key = f"like_{unique_suffix}"
-            cart_key = f"cart_{unique_suffix}"
-            view_key = f"view_{unique_suffix}"
-            buy_key = f"buy_{unique_suffix}"
+            like_key = f"like_{product_id}_{index}_{unique_id}"
+            cart_key = f"cart_{product_id}_{index}_{unique_id}"
+            view_key = f"view_{product_id}_{index}_{unique_id}"
+            buy_key = f"buy_{product_id}_{index}_{unique_id}"
+
+            # Debugging: Print keys
+            st.write(f"Debug: {like_key}, {cart_key}, {view_key}, {buy_key}")
 
             col1, col2 = st.columns(2)
             with col1:
