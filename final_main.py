@@ -560,29 +560,80 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
     
         print("here5")
         # Step 6: Perform semantic search and combine results
-        session.sql(f"""
+        # session.sql(f"""
+        #     CREATE OR REPLACE TABLE AUGMENT_TABLE AS
+        #     WITH cross_product AS (
+        #         SELECT 
+        #             p.CATEGORY_1,
+        #             p.CATEGORY_2,
+        #             p.CATEGORY_3,
+        #             p.DESCRIPTION,
+        #             p.HIGHLIGHTS,
+        #             p.IMAGE_LINKS,
+        #             p.MRP,
+        #             p.PRODUCT_ID,
+        #             p.PRODUCT_RATING,
+        #             p.SELLER_NAME,
+        #             p.SELLER_RATING,
+        #             p.TITLE,
+        #             p.product_vec,
+        #             VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
+        #         FROM context_table c
+        #         CROSS JOIN product_table_stage p
+        #     ),
+        #     ranked_results AS (
+        #         SELECT
+        #             CATEGORY_1,
+        #             CATEGORY_2,
+        #             CATEGORY_3,
+        #             DESCRIPTION,
+        #             HIGHLIGHTS,
+        #             IMAGE_LINKS,
+        #             MRP,
+        #             PRODUCT_ID,
+        #             PRODUCT_RATING,
+        #             SELLER_NAME,
+        #             SELLER_RATING,
+        #             TITLE,
+        #             similarity
+        #         FROM cross_product
+        #         WHERE similarity > {threshold}
+        #         ORDER BY similarity DESC
+        #     ),
+        #     default_results AS (
+        #         SELECT
+        #             CATEGORY_1,
+        #             CATEGORY_2,
+        #             CATEGORY_3,
+        #             DESCRIPTION,
+        #             HIGHLIGHTS,
+        #             IMAGE_LINKS,
+        #             MRP,
+        #             PRODUCT_ID,
+        #             PRODUCT_RATING,
+        #             SELLER_NAME,
+        #             SELLER_RATING,
+        #             TITLE,
+        #             NULL as similarity
+        #         FROM product_table_stage
+        #         LIMIT 100
+        #     )
+        #     SELECT *
+        #     FROM (
+        #         SELECT * FROM ranked_results
+        #         UNION ALL
+        #         SELECT * FROM default_results
+        #         WHERE NOT EXISTS (SELECT 1 FROM context_table)
+        #         GROUP BY PRODUCT_ID
+        #     ) final_results
+        #     ORDER BY similarity DESC NULLS LAST
+        #     LIMIT 100;
+        # """).collect()
+
+        query = """
             CREATE OR REPLACE TABLE AUGMENT_TABLE AS
-            WITH cross_product AS (
+            WITH final_results AS (
                 SELECT 
-                    p.CATEGORY_1,
-                    p.CATEGORY_2,
-                    p.CATEGORY_3,
-                    p.DESCRIPTION,
-                    p.HIGHLIGHTS,
-                    p.IMAGE_LINKS,
-                    p.MRP,
-                    p.PRODUCT_ID,
-                    p.PRODUCT_RATING,
-                    p.SELLER_NAME,
-                    p.SELLER_RATING,
-                    p.TITLE,
-                    p.product_vec,
-                    VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) AS similarity
-                FROM context_table c
-                CROSS JOIN product_table_stage p
-            ),
-            ranked_results AS (
-                SELECT
                     CATEGORY_1,
                     CATEGORY_2,
                     CATEGORY_3,
@@ -595,30 +646,51 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     SELLER_NAME,
                     SELLER_RATING,
                     TITLE,
+                    product_vec,
                     similarity,
-                    ROW_NUMBER() OVER (PARTITION BY PRODUCT_ID ORDER BY similarity DESC NULLS LAST) AS row_num
-                FROM cross_product
-                WHERE similarity > {threshold}
-            ),
-            default_results AS (
-                SELECT
-                    CATEGORY_1,
-                    CATEGORY_2,
-                    CATEGORY_3,
-                    DESCRIPTION,
-                    HIGHLIGHTS,
-                    IMAGE_LINKS,
-                    MRP,
-                    PRODUCT_ID,
-                    PRODUCT_RATING,
-                    SELLER_NAME,
-                    SELLER_RATING,
-                    TITLE,
-                    NULL as similarity,
-                    ROW_NUMBER() OVER (PARTITION BY PRODUCT_ID ORDER BY NULL) AS row_num
-                FROM product_table_stage
-                LIMIT 100
+                    ROW_NUMBER() OVER (PARTITION BY PRODUCT_ID ORDER BY similarity DESC) AS row_num
+                FROM (
+                    -- Select top similarity for each product
+                    SELECT 
+                        CATEGORY_1,
+                        CATEGORY_2,
+                        CATEGORY_3,
+                        DESCRIPTION,
+                        HIGHLIGHTS,
+                        IMAGE_LINKS,
+                        MRP,
+                        PRODUCT_ID,
+                        PRODUCT_RATING,
+                        SELLER_NAME,
+                        SELLER_RATING,
+                        TITLE,
+                        product_vec,
+                        similarity
+                    FROM ranked_results 
+                    
+                    UNION ALL
+                    
+                    -- Include default results only if no context_table exists
+                    SELECT 
+                        CATEGORY_1,
+                        CATEGORY_2,
+                        CATEGORY_3,
+                        DESCRIPTION,
+                        HIGHLIGHTS,
+                        IMAGE_LINKS,
+                        MRP,
+                        PRODUCT_ID,
+                        PRODUCT_RATING,
+                        SELLER_NAME,
+                        SELLER_RATING,
+                        TITLE,
+                        product_vec,
+                        NULL AS similarity
+                    FROM default_results
+                    WHERE NOT EXISTS (SELECT 1 FROM context_table)
+                ) final_results
             )
+            -- Select the product with the maximum similarity per PRODUCT_ID
             SELECT 
                 CATEGORY_1,
                 CATEGORY_2,
@@ -633,18 +705,17 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 SELLER_RATING,
                 TITLE,
                 product_vec,
-                max(similarity)
-            FROM (
-                -- Select only the top similarity result per product
-                SELECT * FROM ranked_results WHERE row_num = 1
-                UNION ALL
-                -- Include default results only if no context_table exists
-                SELECT * FROM default_results
-                WHERE NOT EXISTS (SELECT 1 FROM context_table)
-            ) final_results
-            GROUP BY PRODUCT_ID
+                similarity
+            FROM final_results
+            WHERE row_num = 1
+            ORDER BY similarity DESC NULLS LAST
             LIMIT 100;
-        """).collect()
+
+
+        """
+
+        df = session.sql(query).collect()
+
 
         print("Step 6: Results successfully stored in augment_table.")
     except Exception as e:
