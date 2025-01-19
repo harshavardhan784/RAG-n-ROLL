@@ -926,7 +926,9 @@ def display_product_details(product, session):
                     st.success(message_map[interaction_type])
                     del st.session_state.interactions[interaction_key]
 def main():
-    st.set_page_config(page_title="Smart Shopping", layout="wide")
+    st.title("MindMart Smart Shopping")
+    st.subheader("Shop Smarter, Save More!")  # This can be your tagline
+
 
     # Initialize session state
     if "page" not in st.session_state:
