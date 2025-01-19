@@ -973,21 +973,20 @@ def display_product_card(product, column, session):
             st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
 
             product_id = product["PRODUCT_ID"]
-            like_key = f"like_{product_id}"
-            cart_key = f"cart_{product_id}"
-            view_key = f"view_{product_id}"
-            buy_key = f"buy_{product_id}"
+            unique_suffix = f"{product_id}_{st.session_state.user_id}"
+            
+            like_key = f"like_{unique_suffix}"
+            cart_key = f"cart_{unique_suffix}"
+            view_key = f"view_{unique_suffix}"
+            buy_key = f"buy_{unique_suffix}"
 
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("❤️ Like", key=like_key):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "like"):
                         st.toast("Product Liked!")
-                    
 
                 if st.button("🛒 Add to Cart", key=cart_key):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart"):
                         st.toast("Added to Cart!")
 
@@ -996,13 +995,11 @@ def display_product_card(product, column, session):
                     st.session_state.current_product = product.to_dict()
                     st.session_state.page = "detail"
                     handle_product_interaction(session, st.session_state.user_id, product_id, "view")
-                    st.rerun()  # Ensures only necessary rerun happens
+                    st.rerun()
 
                 if st.button("💰 Purchase", key=buy_key):
-                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "purchase"):
                         st.toast("Purchase Successful!")
-                    
 
 # 🔴 Fix navigation to details page
 def go_to_product_details(product):
