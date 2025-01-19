@@ -761,11 +761,8 @@ def register_user(session, username, email, password):
         password_hash = hash_password(password)
         
         # Check for existing user
-        existing_user = session.sql(f"""
-            SELECT COUNT(*) as count 
-            FROM USER_TABLE 
-            WHERE USERNAME = '{username}' OR EMAIL = '{email}'
-        """).collect()
+        existing_user = session.sql("SELECT COUNT(*) AS count FROM USER_TABLE WHERE USERNAME = ? OR EMAIL = ?", [username, email]).collect()
+
         
         if existing_user[0]['COUNT'] > 0:
             return "Username or email already exists"
@@ -877,7 +874,7 @@ def log_interaction(session, user_id, product_id, interaction_type):
                     {user_id},
                     {product_id},
                     {interaction_type},
-                    {current_timestamp}
+                    CURRENT_TIMESTAMP()
                 )
             """).collect()
         except Exception as e:
