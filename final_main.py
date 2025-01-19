@@ -571,7 +571,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.HIGHLIGHTS,
                     p.IMAGE_LINKS,
                     p.MRP,
-                    p.PRODUCT_ID AS PRIMARY,
+                    p.PRODUCT_ID,
                     p.PRODUCT_RATING,
                     p.SELLER_NAME,
                     p.SELLER_RATING,
@@ -619,7 +619,21 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 FROM product_table_stage
                 LIMIT 100
             )
-            SELECT *
+            SELECT 
+                CATEGORY_1,
+                CATEGORY_2,
+                CATEGORY_3,
+                DESCRIPTION,
+                HIGHLIGHTS,
+                IMAGE_LINKS,
+                MRP,
+                PRODUCT_ID,
+                PRODUCT_RATING,
+                SELLER_NAME,
+                SELLER_RATING,
+                TITLE,
+                product_vec,
+                max(similarity)
             FROM (
                 -- Select only the top similarity result per product
                 SELECT * FROM ranked_results WHERE row_num = 1
@@ -628,7 +642,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 SELECT * FROM default_results
                 WHERE NOT EXISTS (SELECT 1 FROM context_table)
             ) final_results
-            ORDER BY PRODUCT_ID, similarity DESC NULLS LAST
+            GROUP BY PRODUCT_ID
             LIMIT 100;
         """).collect()
 
