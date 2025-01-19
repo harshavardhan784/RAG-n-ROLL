@@ -2,6 +2,9 @@
 
 MindMart is an intelligent e-commerce platform that combines semantic search, personalized recommendations, and user interaction tracking to provide a smart shopping experience. Built with Streamlit and Snowflake, it uses advanced NLP models for better product discovery and personalization.
 
+Link: https://rag-n-roll-3udgb2b6wdsghcfkkbbzaq.streamlit.app/
+Alternative link: https://rag-n-roll-3udgb2b6wdsghcfkkbbzaq.streamlit.app/ 
+
 ## Features ✨
 
 - **Smart Search**: Uses Mistral LLM and semantic search to understand user intent and find relevant products
