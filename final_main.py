@@ -455,6 +455,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 FROM context_table c
                 CROSS JOIN product_table_stage p
                 WHERE VECTOR_COSINE_SIMILARITY(c.context_vec, p.product_vec) > {threshold}
+                LIMIT 100
             ),
             ranked_results AS (
                 SELECT 
@@ -510,7 +511,8 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 similarity
             FROM ranked_results
             WHERE rank_num <= {rank}
-            ORDER BY similarity DESC;
+            ORDER BY similarity DESC
+            LIMIT 100
         """).collect()
 
         print("Step 6: Results successfully stored in augment_table.")
@@ -520,6 +522,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
 
 
 def get_recommendations(session, human_query, user_id):
+
     
     human_query = human_query.replace('"', '').replace("'", "")
 
