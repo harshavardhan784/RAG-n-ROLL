@@ -39,9 +39,9 @@ import os
 # }
 
 SNOWFLAKE_CONFIG = {
-    "account": "TLB97748",
+    "account": "OAB19993",
     "user": "HARSHAVARDHANGOVIND",
-    "password": "Harsha_456",
+    "password": "Harsha#456",
     "warehouse": "ECOMMERCE_WH",
     "database": "ECOMMERCE_DB",
     "schema": "PUBLIC"
@@ -327,7 +327,7 @@ def filter_temp_table(session, user_query):
         # Extract results array
         if isinstance(parsed_results, dict) and 'results' in parsed_results:
             search_results = parsed_results['results']
-            print("here3")
+            # print("here3")
             print(search_results)
         else:
             print("No results array found in response")
@@ -405,7 +405,7 @@ def filter_context_table(session, user_query):
         # Extract results array
         if isinstance(parsed_results, dict) and 'results' in parsed_results:
             search_results = parsed_results['results']
-            print("here3")
+            # print("here3")
             print(search_results)
         else:
             print("No results array found in response")
@@ -561,7 +561,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
         print("here5")
         # Step 6: Perform semantic search and combine results
         session.sql(f"""
-            CREATE OR REPLACE TABLE augment_table AS
+            CREATE OR REPLACE TABLE AUGMENT_TABLE AS
             WITH cross_product AS (
                 SELECT 
                     p.CATEGORY_1,
@@ -618,16 +618,93 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 FROM product_table_stage
                 LIMIT 100
             )
-            SELECT *
-            FROM (
-                SELECT * FROM ranked_results
-                UNION ALL
-                SELECT * FROM default_results
-                WHERE NOT EXISTS (SELECT 1 FROM context_table)
-            ) final_results
+            
+            CREATE OR REPLACE TABLE AUGMENT_TABLE AS
+            WITH final_results AS (
+                SELECT 
+                    CATEGORY_1,
+                    CATEGORY_2,
+                    CATEGORY_3,
+                    DESCRIPTION,
+                    HIGHLIGHTS,
+                    IMAGE_LINKS,
+                    MRP,
+                    PRODUCT_ID,
+                    PRODUCT_RATING,
+                    SELLER_NAME,
+                    SELLER_RATING,
+                    TITLE,
+                    product_vec,
+                    similarity,
+                    ROW_NUMBER() OVER (PARTITION BY PRODUCT_ID ORDER BY similarity DESC) AS row_num
+                FROM (
+                    -- Select top similarity for each product
+                    SELECT 
+                        CATEGORY_1,
+                        CATEGORY_2,
+                        CATEGORY_3,
+                        DESCRIPTION,
+                        HIGHLIGHTS,
+                        IMAGE_LINKS,
+                        MRP,
+                        PRODUCT_ID,
+                        PRODUCT_RATING,
+                        SELLER_NAME,
+                        SELLER_RATING,
+                        TITLE,
+                        product_vec,
+                        similarity
+                    FROM ranked_results 
+                    
+                    UNION ALL
+                    
+                    -- Include default results only if no context_table exists
+                    SELECT 
+                        CATEGORY_1,
+                        CATEGORY_2,
+                        CATEGORY_3,
+                        DESCRIPTION,
+                        HIGHLIGHTS,
+                        IMAGE_LINKS,
+                        MRP,
+                        PRODUCT_ID,
+                        PRODUCT_RATING,
+                        SELLER_NAME,
+                        SELLER_RATING,
+                        TITLE,
+                        product_vec,
+                        NULL AS similarity
+                    FROM default_results
+                    WHERE NOT EXISTS (SELECT 1 FROM context_table)
+                ) final_results
+            )
+            -- Select the product with the maximum similarity per PRODUCT_ID
+            SELECT 
+                CATEGORY_1,
+                CATEGORY_2,
+                CATEGORY_3,
+                DESCRIPTION,
+                HIGHLIGHTS,
+                IMAGE_LINKS,
+                MRP,
+                PRODUCT_ID,
+                PRODUCT_RATING,
+                SELLER_NAME,
+                SELLER_RATING,
+                TITLE,
+                product_vec,
+                similarity
+            FROM final_results
+            WHERE row_num = 1
             ORDER BY similarity DESC NULLS LAST
             LIMIT 100;
-        """).collect()
+
+            """
+        ).collect()
+
+        # df = session.sql(query).collect()
+
+
         print("Step 6: Results successfully stored in augment_table.")
     except Exception as e:
         print(f"Error during semantic search: {str(e)}")
@@ -653,7 +730,7 @@ def get_recommendations(session, human_query, user_id):
     print("filter_temp_table\n")
     filter_temp_table(session, mistral_query)
 
-    filter_context_table(session, mistral_query)
+    # filter_context_table(session, mistral_query)
     
     print("perform_semantic_search\n")
     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
