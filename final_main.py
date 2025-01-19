@@ -561,7 +561,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
         print("here5")
         # Step 6: Perform semantic search and combine results
         session.sql(f"""
-            CREATE OR REPLACE TABLE augment_table AS
+            CREATE OR REPLACE TABLE AUGMENT_TABLE AS
             WITH cross_product AS (
                 SELECT 
                     p.CATEGORY_1,
@@ -571,7 +571,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.HIGHLIGHTS,
                     p.IMAGE_LINKS,
                     p.MRP,
-                    p.PRODUCT_ID,
+                    UNIQUE(p.PRODUCT_ID),
                     p.PRODUCT_RATING,
                     p.SELLER_NAME,
                     p.SELLER_RATING,
