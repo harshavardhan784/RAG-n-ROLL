@@ -796,9 +796,9 @@ def display_product_card(product, column, session, var):
     with column:
         with st.container():
             try:
-                st.image(product["IMAGE_LINKS"], use_column_width=True)
+                st.image(product["IMAGE_LINKS"], use_column_width=200)
             except:
-                st.image("https://via.placeholder.com/200", use_column_width=True)
+                st.image("https://via.placeholder.com/200", use_column_width=200)
 
             st.markdown(f"**{product['TITLE'][:50]}...**")
             st.write(f"Price: ₹{float(product['MRP']):.2f}")
