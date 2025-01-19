@@ -920,48 +920,8 @@ def handle_product_interaction(session, user_id, product_id, interaction_type):
             return True
     
     return False
-def display_products_with_pagination(products, session):
-    """Display products with pagination."""
-    products_per_page = 6  # Number of products to show per page
-    total_products = len(products)
-    total_pages = (total_products + products_per_page - 1) // products_per_page  # Calculate total pages
 
-    # Initialize page state
-    if "current_page" not in st.session_state:
-        st.session_state.current_page = 1
-
-    # Get current page products
-    start_index = (st.session_state.current_page - 1) * products_per_page
-    end_index = start_index + products_per_page
-    current_page_products = products[start_index:end_index]
-
-    # Display products
-    cols = st.columns(3)  # Adjust number of columns as needed
-    for i, product in enumerate(current_page_products):
-        display_product_card(product, cols[i % 3], session)
-
-    # Pagination controls
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col1:
-        if st.session_state.current_page > 1:
-            if st.button("Previous"):
-                st.session_state.current_page -= 1
-                st.rerun()
-
-    with col3:
-        if st.session_state.current_page < total_pages:
-            if st.button("Next"):
-                st.session_state.current_page += 1
-                st.rerun()
-
-    # Display page number
-    with col2:
-        st.write(f"Page {st.session_state.current_page} of {total_pages}")
-
-
-import uuid
-
-def display_product_card(product, column, session, index):
+def display_product_card(product, column, session):
     """Display product card with interaction buttons"""
     with column:
         with st.container():
@@ -975,23 +935,21 @@ def display_product_card(product, column, session, index):
             st.write(f"Rating: {float(product['PRODUCT_RATING'])}⭐")
 
             product_id = product["PRODUCT_ID"]
-            unique_id = uuid.uuid4().hex[:8]  # Ensure uniqueness
-            
-            like_key = f"like_{product_id}_{index}_{unique_id}"
-            cart_key = f"cart_{product_id}_{index}_{unique_id}"
-            view_key = f"view_{product_id}_{index}_{unique_id}"
-            buy_key = f"buy_{product_id}_{index}_{unique_id}"
-
-            # Debugging: Print keys
-            st.write(f"Debug: {like_key}, {cart_key}, {view_key}, {buy_key}")
+            like_key = f"like_{product_id}"
+            cart_key = f"cart_{product_id}"
+            view_key = f"view_{product_id}"
+            buy_key = f"buy_{product_id}"
 
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("❤️ Like", key=like_key):
+                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "like"):
                         st.toast("Product Liked!")
+                    
 
                 if st.button("🛒 Add to Cart", key=cart_key):
+                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "add_to_cart"):
                         st.toast("Added to Cart!")
 
@@ -1000,11 +958,13 @@ def display_product_card(product, column, session, index):
                     st.session_state.current_product = product.to_dict()
                     st.session_state.page = "detail"
                     handle_product_interaction(session, st.session_state.user_id, product_id, "view")
-                    st.rerun()
+                    st.rerun()  # Ensures only necessary rerun happens
 
                 if st.button("💰 Purchase", key=buy_key):
+                    
                     if handle_product_interaction(session, st.session_state.user_id, product_id, "purchase"):
                         st.toast("Purchase Successful!")
+                    
 
 # 🔴 Fix navigation to details page
 def go_to_product_details(product):
