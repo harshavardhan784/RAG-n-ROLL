@@ -20,8 +20,8 @@ import hashlib
 # }
 
 SNOWFLAKE_CONFIG = {
-    "account": "OAB19993",
-    "user": "HARSHAVARDHANGOVIND",
+    "account": "TLB73178",
+    "user": "HARSHAVARDHAN784",
     "password": "Harsha#456",
     "warehouse": "ECOMMERCE_WH",
     "database": "ECOMMERCE_DB",
