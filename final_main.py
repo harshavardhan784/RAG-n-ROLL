@@ -901,8 +901,15 @@ def handle_product_interaction(session, user_id, product_id, interaction_type):
     
     return False
 
-def display_product_card(product, column, session):
+def display_product_card(product, column, session, var):
     """Display product card with interaction buttons"""
+
+    if var:
+        if st.button("← Back to Products"):
+            st.session_state.page = 'home'
+            st.session_state.current_product = None
+            st.rerun()
+
     with column:
         with st.container():
             try:
@@ -1054,10 +1061,9 @@ def main():
     if st.session_state.page == "home":
         st.markdown("### 🔍 Search Products")
         search_query = st.text_input("", placeholder="What are you looking for today?", key="search_input")
+        var = st.button("Search", key="search_button")
 
-    
-        if st.button("Search", key="search_button") and search_query:
-            
+        if var and search_query:
             with st.spinner("Searching for products..."):
                 results_df = fetch_recommendations(session, search_query, st.session_state.user_id)
                 if not results_df.empty:
@@ -1079,15 +1085,8 @@ def main():
                 cols = st.columns(3)
                 for j in range(3):
                     if i + j < len(products):
-                        if products.shape[0] == 10:
-                            if st.button("← Back to Products"):
-                                st.session_state.page = 'home'
-                                st.session_state.current_product = None
-                                st.rerun()
 
-                            display_product_card(products.iloc[i + j], cols[j], session)
-                        else:
-                            display_product_card(products.iloc[i + j], cols[j], session)
+                        display_product_card(products.iloc[i + j], cols[j], session, var)
 
     elif st.session_state.page == "detail" and isinstance(st.session_state.current_product, dict):
         display_product_details(st.session_state.current_product, session)
