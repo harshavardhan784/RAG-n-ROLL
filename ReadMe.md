@@ -7,6 +7,8 @@ Link: https://rag-n-roll-3udgb2b6wdsghcfkkbbzaq.streamlit.app/
 
 Alternative link: https://rag-n-roll-3udgb2b6wdsghcfkkbbzaq.streamlit.app/ 
 
+
+Demo: https://youtu.be/Al2AvKVfo78?si=5p-KutLuV3L6TSNN
 ## Features ✨
 
 - **Smart Search**: Uses Mistral LLM and semantic search to understand user intent and find relevant products
