@@ -653,7 +653,7 @@ def get_recommendations(session, human_query, user_id):
     print("filter_temp_table\n")
     filter_temp_table(session, mistral_query)
 
-    filter_context_table(session, mistral_query)
+    # filter_context_table(session, mistral_query)
     
     print("perform_semantic_search\n")
     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
