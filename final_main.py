@@ -39,9 +39,9 @@ import os
 # }
 
 SNOWFLAKE_CONFIG = {
-    "account": "TLB97748",
+    "account": "OAB19993",
     "user": "HARSHAVARDHANGOVIND",
-    "password": "Harsha_456",
+    "password": "Harsha#456",
     "warehouse": "ECOMMERCE_WH",
     "database": "ECOMMERCE_DB",
     "schema": "PUBLIC"
