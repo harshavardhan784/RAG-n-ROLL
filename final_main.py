@@ -658,7 +658,7 @@ def get_recommendations(session, human_query, user_id):
     print("perform_semantic_search\n")
     perform_semantic_search(session, user_id, rank=1000, threshold=0.0)
 
-    filter_augment_table(session, mistral_query)
+    return filter_augment_table(session, mistral_query)
 
     try:
         # Query to fetch data from the specified table
