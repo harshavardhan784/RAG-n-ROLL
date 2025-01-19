@@ -4,27 +4,8 @@ import pandas as pd
 from datetime import datetime
 import json
 from snowflake.snowpark import Session
-
-
-
-import streamlit as st
-from datetime import datetime
-import pandas as pd
-import json
-
-# Import python packages
-import streamlit as st
-import pandas as pd
-import json
 import os
-
-
-
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import json
-import os
+import hashlib
 
 # We can also use Snowpark for our analyses!
 # from snowflake.snowpark.context import get_active_session
@@ -354,82 +335,6 @@ def filter_temp_table(session, user_query):
         return pd.DataFrame()
 
 
-def filter_context_table(session, user_query):
-    """
-    Main function to process search query and filter results.
-    """
-    try:
-        # Clean the query if necessary (here, it's just a placeholder)
-        cleaned_query = user_query
-
-        # Create the Cortex Search Service (ensure it is created beforehand)
-        create_cortex_search_service(session, "CONTEXT_TABLE")
-
-        # Create search configuration
-        search_config = create_search_config(cleaned_query)
-
-        # Convert the search configuration to a JSON string
-        search_json = json.dumps(search_config)
-
-        # Debug: Print the search JSON to ensure it's correctly formatted
-        print("Debug - Search JSON:", search_json)
-        
-        # Build the final SQL query using the escaped JSON configuration
-        query = build_search_query(search_json)
-
-        # Debug: Print the final query before execution
-        print("Debug - Executing query:", query)
-        
-        # Execute query
-        results = session.sql(query).to_pandas()
-        # print("Debug - Query results:", results)
-        # print("here1")
-        
-        if results.empty:
-            print("No results found")
-            return pd.DataFrame()
-        
-        # Parse results
-        parsed_results = results['SEARCH_RESULTS'].iloc[0]
-        # print("parsed_results:", parsed_results)
-        # print("here2")
-        
-        # Handle string to dict conversion if necessary
-        if isinstance(parsed_results, str):
-            try:
-                parsed_results = json.loads(parsed_results)
-            except json.JSONDecodeError:
-                print("Error: Could not parse results as JSON")
-                return pd.DataFrame()
-        
-        # Extract results array
-        if isinstance(parsed_results, dict) and 'results' in parsed_results:
-            search_results = parsed_results['results']
-            # print("here3")
-            print(search_results)
-        else:
-            print("No results array found in response")
-            return pd.DataFrame()
-        
-        # Convert to DataFrame and process
-        flattened_results = pd.json_normalize(search_results)
-        if flattened_results.empty:
-            print("Search returned no matching results")
-            return pd.DataFrame()
-        
-        # Process numeric columns
-        flattened_results = process_numeric_columns(flattened_results)
-        
-        # Save to temporary table
-        if save_to_temp_table(session, flattened_results, "CONTEXT_TABLE"):
-            return flattened_results
-        else:
-            print("Failed to save results to temporary table")
-            return flattened_results
-        
-    except Exception as e:
-        print(f"Error in filter_temp_table: {str(e)}")
-        return pd.DataFrame()
 
 def filter_augment_table(session, user_query):
     """
@@ -680,33 +585,27 @@ def cleanup_tables(session):
             print(f"Error cleaning up table: {str(e)}")
 
 
-def header_section():
-    """Create the header section of the application"""
-    col1, col2, col3 = st.columns([2,1,1])
+# def header_section():
+#     """Create the header section of the application"""
+#     col1, col2, col3 = st.columns([2,1,1])
     
-    with col1:
-        st.title("🛍️ Smart Shopping")
+#     with col1:
+#         st.title("🛍️ Smart Shopping")
     
-    with col2:
-        user_id = st.number_input("Enter User ID", min_value=0, value=0, step=1, key="user_id_input")
-        if user_id > 0:
-            st.session_state.user_id = user_id
+#     with col2:
+#         user_id = st.number_input("Enter User ID", min_value=0, value=0, step=1, key="user_id_input")
+#         if user_id > 0:
+#             st.session_state.user_id = user_id
     
-    with col3:
-        st.write("🛒 Shopping Cart")
-        st.write(f"Items: {len(st.session_state.cart_items)}")
-        if st.button("Clear Cart", key="clear_cart_header"):
-            st.session_state.cart_items = []
-            st.success("Cart cleared!")
+#     with col3:
+#         st.write("🛒 Shopping Cart")
+#         st.write(f"Items: {len(st.session_state.cart_items)}")
+#         if st.button("Clear Cart", key="clear_cart_header"):
+#             st.session_state.cart_items = []
+#             st.success("Cart cleared!")
 
 
 # here
-
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import hashlib
-import json
 
 def init_session_state():
     if 'logged_in' not in st.session_state:
@@ -760,25 +659,6 @@ def register_user(session, username, email, password):
         
     except Exception as e:
         return str(e)
-
-def record_interaction(session, user_id, product_id, interaction_type):
-    try:
-        interaction_id = f"INT_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        session.sql(f"""
-            INSERT INTO USER_INTERACTION_TABLE
-            (INTERACTION_ID, USER_ID, PRODUCT_ID, INTERACTION_TYPE)
-            VALUES (
-                '{interaction_id}',
-                {user_id},
-                '{product_id}',
-                '{interaction_type}'
-            )
-        """).collect()
-        return True
-    except Exception as e:
-        st.error(f"Error recording interaction: {str(e)}")
-        return False
-
 
 def auth_page(session):
     st.title("Welcome to Smart Shopping")
@@ -904,11 +784,11 @@ def handle_product_interaction(session, user_id, product_id, interaction_type):
 def display_product_card(product, column, session, var):
     """Display product card with interaction buttons"""
 
-    if var:
-        if st.button("← Back to Products", key="back_to_products_from_search"):
-            st.session_state.page = 'home'
-            st.session_state.current_product = None
-            st.rerun()
+    # if var:
+    #     if st.button("← Back to Products", key="back_to_products_from_search"):
+    #         st.session_state.page = 'home'
+    #         st.session_state.current_product = None
+    #         st.rerun()
 
     with column:
         with st.container():
