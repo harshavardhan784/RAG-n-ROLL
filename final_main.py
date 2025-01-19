@@ -571,7 +571,7 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                     p.HIGHLIGHTS,
                     p.IMAGE_LINKS,
                     p.MRP,
-                    p.PRODUCT_ID,
+                    p.PRODUCT_ID AS PRIMARY,
                     p.PRODUCT_RATING,
                     p.SELLER_NAME,
                     p.SELLER_RATING,
@@ -618,16 +618,15 @@ def perform_semantic_search(session, user_id, rank=100, threshold=0.5):
                 FROM product_table_stage
                 LIMIT 100
             )
-            SELECT DISTINCT ON (PRODUCT_ID) *
+            SELECT *
             FROM (
                 SELECT * FROM ranked_results
                 UNION ALL
                 SELECT * FROM default_results
                 WHERE NOT EXISTS (SELECT 1 FROM context_table)
             ) final_results
-            ORDER BY PRODUCT_ID, similarity DESC NULLS LAST
+            ORDER BY similarity DESC NULLS LAST
             LIMIT 100;
-
         """).collect()
         print("Step 6: Results successfully stored in augment_table.")
     except Exception as e:
